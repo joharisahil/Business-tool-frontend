@@ -56,7 +56,7 @@ export function AppSidebar() {
       {!collapsed && (
         <div>
           <h1 className="text-sm font-bold tracking-wide">
-            HOTEL PMS
+            Vypari CA
           </h1>
           <p className="text-[11px] text-zinc-400">
             Inventory & Finance

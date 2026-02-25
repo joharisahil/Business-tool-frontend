@@ -132,7 +132,7 @@ const [loading, setLoading] = useState(true);
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Inventory Items</h1>
-            <p className="text-muted-foreground text-sm mt-1">Manage hotel stock items across all categories</p>
+            <p className="text-muted-foreground text-sm mt-1">Manage stock items across all categories</p>
           </div>
           <Button className="gold-gradient text-accent-foreground font-medium" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-2" />Add Item
