@@ -264,5 +264,5 @@ export const reverseJournalEntryApi = async (id: string) => {
 ========================================================= */
 export const getAuditLogsApi = async () => {
   const res = await api.get("/inventory/audit");
-  return res.data.data.map(mapAuditLog);
+  return res.data.logs.map(mapAuditLog);
 };

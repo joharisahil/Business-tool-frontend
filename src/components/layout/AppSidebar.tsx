@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Label } from '@radix-ui/react-dropdown-menu';
 
 const navGroups = [
   {
@@ -20,6 +21,7 @@ const navGroups = [
       { to: '/transactions', icon: ArrowLeftRight, label: 'Stock Transactions' },
       { to: '/adjustments', icon: SlidersHorizontal, label: 'Stock Adjustments' },
       { to: '/expiry', icon: CalendarX2, label: 'Expiry Monitoring' },
+      { to: "/categories/create", icon: CalendarX2, label: 'Create Category' },
     ],
   },
   {

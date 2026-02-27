@@ -192,15 +192,24 @@ export const mapCreditNote = (raw: any): CreditNote => ({
 ===================================================== */
 
 export const mapAuditLog = (raw: any): AuditLogEntry => ({
-  id: mapId(raw),
+  id: raw._id,
+
   entityType: raw.entityType,
-  entityId: raw.entity_id || raw.entityId,
+  entityId: raw.entity_id,
+
   action: raw.action,
   description: raw.description,
-  beforeValue: raw.before,
-  afterValue: raw.after,
-  performedBy: mapUserName(raw.user),
-  performedAt: raw.performedAt,
+
+  beforeValue: raw.beforeValue || undefined,
+  afterValue: raw.afterValue || undefined,
+
+  performedBy:
+    raw.performerName ||
+    raw.performedBy?.name ||
+    "",
+
+  performedAt: raw.createdAt,
+
   ipAddress: raw.ipAddress,
   role: raw.role,
 });

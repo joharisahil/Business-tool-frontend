@@ -35,6 +35,7 @@ import {
   getLedgerAccountsApi,
   getJournalEntriesApi,
   reverseJournalEntryApi,
+  getTrialBalanceApi,
 } from "@/api/inventoryApi";
 import { useToast } from "@/hooks/use-toast";
 import type { LedgerAccountType, JournalEntry } from "./types/inventory";
@@ -49,6 +50,7 @@ const accountTypeStyles: Record<LedgerAccountType, string> = {
 
 const GeneralLedger = () => {
   const { toast } = useToast();
+
   const [journalList, setJournalList] = useState<JournalEntry[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,17 +64,18 @@ const GeneralLedger = () => {
 
   const accountsByType = (type: LedgerAccountType) =>
     ledgerAccounts.filter((a) => a.type === type);
+
   useEffect(() => {
     const fetchLedgerData = async () => {
       try {
         setLoading(true);
 
-        const [accountsData, journalsData] = await Promise.all([
-          getLedgerAccountsApi(),
+        const [trialData, journalsData] = await Promise.all([
+          getTrialBalanceApi(),
           getJournalEntriesApi(),
         ]);
 
-        setLedgerAccounts(accountsData);
+        setLedgerAccounts(trialData);
         setJournalList(journalsData);
       } catch (err) {
         toast({
@@ -95,16 +98,22 @@ const GeneralLedger = () => {
           search === "" ||
           je.entryNumber.toLowerCase().includes(search.toLowerCase()) ||
           je.narration.toLowerCase().includes(search.toLowerCase()) ||
-          je.referenceNumber.toLowerCase().includes(search.toLowerCase());
+          je.referenceNumber?.toLowerCase().includes(search.toLowerCase());
+
         const matchesType =
           typeFilter === "all" || je.referenceType === typeFilter;
+
         const matchesAccount =
           accountFilter === "all" ||
           je.lines.some((l) => l.accountId === accountFilter);
+
         const matchesFrom =
           !dateFrom || new Date(je.createdAt) >= new Date(dateFrom);
+
         const matchesTo =
-          !dateTo || new Date(je.createdAt) <= new Date(dateTo + "T23:59:59");
+          !dateTo ||
+          new Date(je.createdAt) <= new Date(dateTo + "T23:59:59");
+
         return (
           matchesSearch &&
           matchesType &&
@@ -115,9 +124,11 @@ const GeneralLedger = () => {
       })
       .sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime(),
       );
   }, [journalList, search, typeFilter, accountFilter, dateFrom, dateTo]);
+
   const trialSummary = useMemo(() => {
     const summary: Record<string, number> = {};
 
@@ -137,11 +148,12 @@ const GeneralLedger = () => {
 
     return summary;
   }, [journalList]);
+
   const handleReversal = async () => {
     if (!reversalEntry) return;
 
     try {
-      const reversed = await reverseJournalEntryApi(reversalEntry.id);
+      await reverseJournalEntryApi(reversalEntry.id);
 
       const journalsData = await getJournalEntriesApi();
       setJournalList(journalsData);
@@ -166,12 +178,19 @@ const GeneralLedger = () => {
         je.lines.some((l) => l.accountId === drillAccount),
       )
     : [];
-  const drilldownAccount = ledgerAccounts.find((a) => a.id === drillAccount);
 
-  // Trial balance summary
-  const totalDebits = journalList.reduce((s, je) => s + je.totalDebit, 0);
-  const totalCredits = journalList.reduce((s, je) => s + je.totalCredit, 0);
+  const drilldownAccount = ledgerAccounts.find(
+    (a) => a.id === drillAccount,
+  );
 
+  const totalDebits = journalList.reduce(
+    (s, je) => s + je.totalDebit,
+    0,
+  );
+  const totalCredits = journalList.reduce(
+    (s, je) => s + je.totalCredit,
+    0,
+  );
   return (
      <>
       <div className="space-y-6">
@@ -576,73 +595,71 @@ const GeneralLedger = () => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
-                    {ledgerAccounts.map((acc) => {
-                      const balance = trialSummary[acc.id] || 0;
-                      const isDebitNormal =
-                        acc.type === "ASSET" || acc.type === "EXPENSE";
-                      return (
-                        <tr
-                          key={acc.id}
-                          className="hover:bg-muted/30 transition-colors"
-                        >
-                          <td className="px-5 py-2.5 font-mono text-xs">
-                            {acc.code}
-                          </td>
-                          <td className="px-5 py-2.5 font-medium">
-                            {acc.parentId ? "↳ " : ""}
-                            {acc.name}
-                          </td>
-                          <td className="px-5 py-2.5">
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] ${accountTypeStyles[acc.type]}`}
-                            >
-                              {acc.type}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-2.5 text-right text-info">
-                            {isDebitNormal && balance > 0
-                              ? `₹${balance.toLocaleString("en-IN")}`
-                              : ""}
-                          </td>
-                          <td className="px-5 py-2.5 text-right text-orange-400">
-                            {!isDebitNormal && balance < 0
-                              ? `₹${Math.abs(balance).toLocaleString("en-IN")}`
-                              : ""}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-border bg-muted/50 font-bold">
-                      <td className="px-5 py-3" colSpan={3}>
-                        Total
-                      </td>
-                      <td className="px-5 py-3 text-right text-info">
-                        ₹
-                        {ledgerAccounts
-                          .filter(
-                            (a) => a.type === "ASSET" || a.type === "EXPENSE",
-                          )
-                          .reduce((s, a) => s + (trialSummary[a.id] || 0), 0)
-                          .toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-5 py-3 text-right text-orange-400">
-                        ₹
-                        {ledgerAccounts
-                          .filter(
-                            (a) => a.type !== "ASSET" && a.type !== "EXPENSE",
-                          )
-                          .reduce(
-                            (s, a) => s + Math.abs(trialSummary[a.id] || 0),
-                            0,
-                          )
-                          .toLocaleString("en-IN")}
-                      </td>
-                    </tr>
-                  </tfoot>
+                 <tbody className="divide-y divide-border">
+  {ledgerAccounts.map((acc) => (
+    <tr
+      key={acc.account_id}
+      className="hover:bg-muted/30 transition-colors"
+    >
+      <td className="px-5 py-2.5 font-mono text-xs">
+        {acc.code}
+      </td>
+
+      <td className="px-5 py-2.5 font-medium">
+        {acc.name}
+      </td>
+
+      <td className="px-5 py-2.5">
+        <Badge
+          variant="outline"
+          className={`text-[10px] ${accountTypeStyles[acc.type]}`}
+        >
+          {acc.type}
+        </Badge>
+      </td>
+
+      {/* Debit Column */}
+      <td className="px-5 py-2.5 text-right text-info font-semibold">
+        {acc.totalDebit > acc.totalCredit
+          ? `₹${(acc.totalDebit - acc.totalCredit).toLocaleString("en-IN")}`
+          : ""}
+      </td>
+
+      {/* Credit Column */}
+      <td className="px-5 py-2.5 text-right text-orange-400 font-semibold">
+        {acc.totalCredit > acc.totalDebit
+          ? `₹${(acc.totalCredit - acc.totalDebit).toLocaleString("en-IN")}`
+          : ""}
+      </td>
+    </tr>
+  ))}
+</tbody>
+
+<tfoot>
+  <tr className="border-t-2 border-border bg-muted/50 font-bold">
+    <td colSpan={3} className="px-5 py-3">
+      Total
+    </td>
+
+    <td className="px-5 py-3 text-right text-info">
+      ₹
+      {ledgerAccounts
+        .reduce((sum, acc) => {
+          return sum + Math.max(acc.totalDebit - acc.totalCredit, 0);
+        }, 0)
+        .toLocaleString("en-IN")}
+    </td>
+
+    <td className="px-5 py-3 text-right text-orange-400">
+      ₹
+      {ledgerAccounts
+        .reduce((sum, acc) => {
+          return sum + Math.max(acc.totalCredit - acc.totalDebit, 0);
+        }, 0)
+        .toLocaleString("en-IN")}
+    </td>
+  </tr>
+</tfoot>
                 </table>
               </CardContent>
             </Card>

@@ -1,5 +1,3 @@
-
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +12,7 @@ import {
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { getAuditLogsApi } from "@/api/inventoryApi";
-import type { AuditLogEntry } from "./types/inventory";
+import type { AuditLogEntry } from "@/types/inventory";
 
 const actionStyles: Record<string, string> = {
   CREATED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -32,7 +30,7 @@ const actionStyles: Record<string, string> = {
 };
 
 const roleStyles: Record<string, string> = {
-  Admin: "bg-primary/10 text-primary border-primary/20",
+  admin: "bg-primary/10 text-primary border-primary/20",
   Accountant: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   FrontDesk: "bg-purple-500/10 text-purple-400 border-purple-500/20",
 };
@@ -49,11 +47,13 @@ const AuditTrail = () => {
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /* ================= FETCH FROM BACKEND ================= */
+
   useEffect(() => {
     const fetchAuditLogs = async () => {
       try {
         setLoading(true);
-        const data = await getAuditLogsApi();
+        const data = await getAuditLogsApi(); // must return mapped array
         setAuditLog(data);
       } catch (err) {
         console.error("Failed to fetch audit logs", err);
@@ -64,6 +64,8 @@ const AuditTrail = () => {
 
     fetchAuditLogs();
   }, []);
+
+  /* ================= FILTER ================= */
 
   const filtered = useMemo(() => {
     return auditLog
@@ -84,7 +86,7 @@ const AuditTrail = () => {
         (a, b) =>
           new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
       );
-  }, [search, entityFilter, actionFilter, dateFrom, dateTo]);
+  }, [auditLog, search, entityFilter, actionFilter, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -97,9 +99,36 @@ const AuditTrail = () => {
     setDateTo("");
     setPage(1);
   };
+  const formatAuditValue = (value: string) => {
+    try {
+      const parsed = JSON.parse(value);
+
+      // If invoiceState exists → show only that
+      if (parsed.invoiceState) {
+        return parsed.invoiceState;
+      }
+
+      // If paymentStatus exists → show that cleanly
+      if (parsed.paymentStatus) {
+        return parsed.paymentStatus;
+      }
+
+      // If stock adjustment
+      if (parsed.stock !== undefined) {
+        return parsed.stock;
+      }
+
+      return Object.entries(parsed)
+        .filter(([_, val]) => typeof val !== "object")
+        .map(([key, val]) => `${key}: ${val}`)
+        .join(", ");
+    } catch {
+      return value;
+    }
+  };
 
   return (
-     
+    <>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Audit Trail</h1>
@@ -108,6 +137,7 @@ const AuditTrail = () => {
           </p>
         </div>
 
+        {/* FILTER CARD (UNCHANGED UI) */}
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex flex-wrap gap-3">
@@ -142,6 +172,7 @@ const AuditTrail = () => {
                 className="w-40"
               />
             </div>
+
             <div className="flex flex-wrap gap-3">
               <Select
                 value={entityFilter}
@@ -173,6 +204,7 @@ const AuditTrail = () => {
                   </SelectItem>
                 </SelectContent>
               </Select>
+
               <Select
                 value={actionFilter}
                 onValueChange={(v) => {
@@ -185,22 +217,14 @@ const AuditTrail = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="CREATED">Created</SelectItem>
-                  <SelectItem value="UPDATED">Updated</SelectItem>
-                  <SelectItem value="APPROVED">Approved</SelectItem>
-                  <SelectItem value="POSTED">Posted</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                  <SelectItem value="REVERSED">Reversed</SelectItem>
-                  <SelectItem value="PAYMENT_RECORDED">
-                    Payment Recorded
-                  </SelectItem>
-                  <SelectItem value="STOCK_IN">Stock IN</SelectItem>
-                  <SelectItem value="STOCK_OUT">Stock OUT</SelectItem>
-                  <SelectItem value="ADJUSTED">Adjusted</SelectItem>
-                  <SelectItem value="ACTIVATED">Activated</SelectItem>
-                  <SelectItem value="DEACTIVATED">Deactivated</SelectItem>
+                  {Object.keys(actionStyles).map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+
               {(search ||
                 entityFilter !== "all" ||
                 actionFilter !== "all" ||
@@ -210,6 +234,7 @@ const AuditTrail = () => {
                   Clear All Filters
                 </Button>
               )}
+
               <span className="text-xs text-muted-foreground self-center ml-auto">
                 {filtered.length} records found
               </span>
@@ -217,6 +242,7 @@ const AuditTrail = () => {
           </CardContent>
         </Card>
 
+        {/* TABLE (UNCHANGED UI) */}
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -246,17 +272,8 @@ const AuditTrail = () => {
                     </th>
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-border">
-                  {loading && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-5 py-10 text-center text-muted-foreground"
-                      >
-                        Loading audit logs...
-                      </td>
-                    </tr>
-                  )}
                   {paginated.map((entry) => (
                     <tr
                       key={entry.id}
@@ -268,6 +285,7 @@ const AuditTrail = () => {
                           timeStyle: "short",
                         })}
                       </td>
+
                       <td className="px-5 py-3">
                         <Badge
                           variant="outline"
@@ -276,6 +294,7 @@ const AuditTrail = () => {
                           {entry.entityType.replace(/_/g, " ")}
                         </Badge>
                       </td>
+
                       <td className="px-5 py-3 text-center">
                         <Badge
                           variant="outline"
@@ -284,29 +303,35 @@ const AuditTrail = () => {
                           {entry.action.replace(/_/g, " ")}
                         </Badge>
                       </td>
+
                       <td className="px-5 py-3 max-w-xs">
                         <p className="truncate" title={entry.description}>
                           {entry.description}
                         </p>
                       </td>
-                      <td className="px-5 py-3 text-xs whitespace-nowrap">
-                        {entry.beforeValue && entry.afterValue ? (
-                          <span className="flex items-center gap-1">
-                            <span className="text-destructive line-through">
-                              {entry.beforeValue}
-                            </span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="text-success font-semibold">
-                              {entry.afterValue}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
+
+                    <td className="px-5 py-3 text-xs whitespace-nowrap">
+  {entry.beforeValue && entry.afterValue ? (
+    <span className="flex items-center gap-2">
+      <span className="text-destructive line-through truncate max-w-[200px]">
+        {formatAuditValue(entry.beforeValue)}
+      </span>
+
+      <span className="text-muted-foreground">→</span>
+
+      <span className="text-success font-semibold truncate max-w-[200px]">
+        {formatAuditValue(entry.afterValue)}
+      </span>
+    </span>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  )}
+</td>
+
                       <td className="px-5 py-3 font-medium whitespace-nowrap">
                         {entry.performedBy}
                       </td>
+
                       <td className="px-5 py-3 text-center">
                         {entry.role && (
                           <Badge
@@ -319,63 +344,13 @@ const AuditTrail = () => {
                       </td>
                     </tr>
                   ))}
-                  {paginated.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-5 py-10 text-center text-muted-foreground"
-                      >
-                        No audit records match the current filters.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
           </CardContent>
         </Card>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            Page {page} of {totalPages} · {filtered.length} records
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const pg = page <= 3 ? i + 1 : page + i - 2;
-              if (pg < 1 || pg > totalPages) return null;
-              return (
-                <Button
-                  key={pg}
-                  variant={pg === page ? "default" : "outline"}
-                  size="sm"
-                  className={`w-8 ${pg === page ? "gold-gradient text-accent-foreground" : ""}`}
-                  onClick={() => setPage(pg)}
-                >
-                  {pg}
-                </Button>
-              );
-            })}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
       </div>
-     
+    </>
   );
 };
 

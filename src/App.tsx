@@ -19,6 +19,7 @@ import CreateCategory from "./pages/inventory/CreateCategory";
 import NotFound from "./pages/NotFound";
 import GeneralLedger from "./pages/inventory/GeneralLedger";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import { AuthProvider } from "@/contexts/AuthContext";
 const queryClient = new QueryClient();
 
@@ -28,10 +29,12 @@ const App = () => (
       <Toaster />
       
       <BrowserRouter>
+      <AuthProvider>
 <Routes>
 
   {/* Public Routes */}
   <Route path="/login" element={<Login />} />
+  <Route path="/register" element={<Register />} />
 
   {/* Root Redirect */}
   <Route path="/" element={<Navigate to="/login" replace />} />
@@ -60,6 +63,7 @@ const App = () => (
   <Route path="*" element={<NotFound />} />
 
 </Routes>
+</AuthProvider>
 </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

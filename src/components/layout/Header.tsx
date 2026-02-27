@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
-//import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -17,13 +17,13 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
 //  const { logout } = useAuth();   // <-- GET logout FUNCTION
 
   const handleLogout = () => {
-//  logout();
-  navigate("/login", { replace: true }); // prevents back button
-};
+    logout();   // ✅ call real logout
+  };
 
 
   return (
