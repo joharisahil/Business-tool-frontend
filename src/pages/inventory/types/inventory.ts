@@ -247,3 +247,43 @@ export interface DashboardStats {
   totalPayable: number;
   recentTransactions: StockTransaction[];
 }
+
+export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CHEQUE" | "UPI";
+
+
+
+export interface SalesInvoiceItem {
+  id: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  gstPercentage: number;
+  totalAmount: number;
+}
+
+
+export interface SalesInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerGSTIN?: string;
+  invoiceState: InvoiceState;
+  paymentStatus: PaymentStatus;
+  items: SalesInvoiceItem[];
+  subtotal: number;
+  taxBreakdown: TaxBreakdown;
+  grandTotal: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  notes?: string;
+  payments: PaymentRecord[];
+  approvedBy?: string;
+  approvedAt?: string;
+  postedBy?: string;
+  postedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+

@@ -11,6 +11,7 @@ import StockTransactions from "./pages/inventory/StockTransactions";
 import StockAdjustments from "./pages/inventory/StockAdjustments";
 import ExpiryMonitoring from "./pages/inventory/ExpiryMonitoring";
 import PurchaseInvoices from "./pages/inventory/PurchaseInvoices";
+import SalesInvoices from "./pages/inventory/SalesInvoices";
 import Vendors from "./pages/inventory/Vendors";
 import Ledger from "./pages/inventory/GeneralLedger";
 import AuditTrail from "./pages/inventory/AuditTrail";
@@ -50,6 +51,7 @@ const App = () => (
     <Route path="/dashboard" element={<InventoryDashboard />} />
     <Route path="/inventory" element={<InventoryItems />} />
     <Route path="/invoices" element={<PurchaseInvoices />} />
+    <Route path="/sales" element={<SalesInvoices />} />
     <Route path="/vendors" element={<Vendors />} />
     <Route path="/transactions" element={<StockTransactions />} />
     <Route path="/adjustments" element={<StockAdjustments />} />

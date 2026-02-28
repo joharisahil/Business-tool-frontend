@@ -77,7 +77,7 @@ const [formData, setFormData] = useState<RegisterFormData>({
             <Hotel className="h-8 w-8 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-bold">
-            Hotel Management System
+            JamBills
           </CardTitle>
           <CardDescription>Create a new account</CardDescription>
         </CardHeader>

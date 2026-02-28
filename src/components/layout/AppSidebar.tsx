@@ -38,6 +38,13 @@ const navGroups = [
       { to: '/audit', icon: Shield, label: 'Audit Trail' },
     ],
   },
+  {
+    label: 'Sales',
+    items: [
+      { to: '/sales', icon: BookOpen, label: 'Billing' },
+     // { to: '/audit', icon: Shield, label: 'Audit Trail' },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -58,7 +65,7 @@ export function AppSidebar() {
       {!collapsed && (
         <div>
           <h1 className="text-sm font-bold tracking-wide">
-            Vypari CA
+            JamBills
           </h1>
           <p className="text-[11px] text-zinc-400">
             Inventory & Finance

@@ -111,8 +111,7 @@ const GeneralLedger = () => {
           !dateFrom || new Date(je.createdAt) >= new Date(dateFrom);
 
         const matchesTo =
-          !dateTo ||
-          new Date(je.createdAt) <= new Date(dateTo + "T23:59:59");
+          !dateTo || new Date(je.createdAt) <= new Date(dateTo + "T23:59:59");
 
         return (
           matchesSearch &&
@@ -124,8 +123,7 @@ const GeneralLedger = () => {
       })
       .sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() -
-          new Date(a.createdAt).getTime(),
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
   }, [journalList, search, typeFilter, accountFilter, dateFrom, dateTo]);
 
@@ -179,20 +177,12 @@ const GeneralLedger = () => {
       )
     : [];
 
-  const drilldownAccount = ledgerAccounts.find(
-    (a) => a.id === drillAccount,
-  );
+  const drilldownAccount = ledgerAccounts.find((a) => a.id === drillAccount);
 
-  const totalDebits = journalList.reduce(
-    (s, je) => s + je.totalDebit,
-    0,
-  );
-  const totalCredits = journalList.reduce(
-    (s, je) => s + je.totalCredit,
-    0,
-  );
+  const totalDebits = journalList.reduce((s, je) => s + je.totalDebit, 0);
+  const totalCredits = journalList.reduce((s, je) => s + je.totalCredit, 0);
   return (
-     <>
+    <>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">General Ledger</h1>
@@ -595,71 +585,75 @@ const GeneralLedger = () => {
                       </th>
                     </tr>
                   </thead>
-                 <tbody className="divide-y divide-border">
-  {ledgerAccounts.map((acc) => (
-    <tr
-      key={acc.account_id}
-      className="hover:bg-muted/30 transition-colors"
-    >
-      <td className="px-5 py-2.5 font-mono text-xs">
-        {acc.code}
-      </td>
+                  <tbody className="divide-y divide-border">
+                    {ledgerAccounts.map((acc) => (
+                      <tr
+                        key={acc.account_id}
+                        className="hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="px-5 py-2.5 font-mono text-xs">
+                          {acc.code}
+                        </td>
 
-      <td className="px-5 py-2.5 font-medium">
-        {acc.name}
-      </td>
+                        <td className="px-5 py-2.5 font-medium">{acc.name}</td>
 
-      <td className="px-5 py-2.5">
-        <Badge
-          variant="outline"
-          className={`text-[10px] ${accountTypeStyles[acc.type]}`}
-        >
-          {acc.type}
-        </Badge>
-      </td>
+                        <td className="px-5 py-2.5">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${accountTypeStyles[acc.type]}`}
+                          >
+                            {acc.type}
+                          </Badge>
+                        </td>
 
-      {/* Debit Column */}
-      <td className="px-5 py-2.5 text-right text-info font-semibold">
-        {acc.totalDebit > acc.totalCredit
-          ? `₹${(acc.totalDebit - acc.totalCredit).toLocaleString("en-IN")}`
-          : ""}
-      </td>
+                        {/* Debit Column */}
+                        <td className="px-5 py-2.5 text-right text-info font-semibold">
+                          {acc.totalDebit > acc.totalCredit
+                            ? `₹${(acc.totalDebit - acc.totalCredit).toLocaleString("en-IN")}`
+                            : ""}
+                        </td>
 
-      {/* Credit Column */}
-      <td className="px-5 py-2.5 text-right text-orange-400 font-semibold">
-        {acc.totalCredit > acc.totalDebit
-          ? `₹${(acc.totalCredit - acc.totalDebit).toLocaleString("en-IN")}`
-          : ""}
-      </td>
-    </tr>
-  ))}
-</tbody>
+                        {/* Credit Column */}
+                        <td className="px-5 py-2.5 text-right text-orange-400 font-semibold">
+                          {acc.totalCredit > acc.totalDebit
+                            ? `₹${(acc.totalCredit - acc.totalDebit).toLocaleString("en-IN")}`
+                            : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
 
-<tfoot>
-  <tr className="border-t-2 border-border bg-muted/50 font-bold">
-    <td colSpan={3} className="px-5 py-3">
-      Total
-    </td>
+                  <tfoot>
+                    <tr className="border-t-2 border-border bg-muted/50 font-bold">
+                      <td colSpan={3} className="px-5 py-3">
+                        Total
+                      </td>
 
-    <td className="px-5 py-3 text-right text-info">
-      ₹
-      {ledgerAccounts
-        .reduce((sum, acc) => {
-          return sum + Math.max(acc.totalDebit - acc.totalCredit, 0);
-        }, 0)
-        .toLocaleString("en-IN")}
-    </td>
+                      <td className="px-5 py-3 text-right text-info">
+                        ₹
+                        {ledgerAccounts
+                          .reduce((sum, acc) => {
+                            return (
+                              sum +
+                              Math.max(acc.totalDebit - acc.totalCredit, 0)
+                            );
+                          }, 0)
+                          .toLocaleString("en-IN")}
+                      </td>
 
-    <td className="px-5 py-3 text-right text-orange-400">
-      ₹
-      {ledgerAccounts
-        .reduce((sum, acc) => {
-          return sum + Math.max(acc.totalCredit - acc.totalDebit, 0);
-        }, 0)
-        .toLocaleString("en-IN")}
-    </td>
-  </tr>
-</tfoot>
+                      <td className="px-5 py-3 text-right text-orange-400">
+                        ₹
+                        {ledgerAccounts
+                          .reduce((sum, acc) => {
+                            return (
+                              sum +
+                              Math.max(acc.totalCredit - acc.totalDebit, 0)
+                            );
+                          }, 0)
+                          .toLocaleString("en-IN")}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </CardContent>
             </Card>
@@ -757,7 +751,7 @@ const GeneralLedger = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-     </>
+    </>
   );
 };
 

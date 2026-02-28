@@ -11,6 +11,8 @@ import type {
   CreditNote,
   AuditLogEntry,
   StockAdjustment,
+  SalesInvoice,
+  PaymentRecord
 } from "../types/inventory";
 
 /* =====================================================
@@ -231,4 +233,71 @@ export const mapStockAdjustment = (raw: any): StockAdjustment => ({
   balanceAfter: raw.balanceAfter,
   adjustedBy: mapUserName(raw.adjustedBy),
   adjustedAt: raw.adjustedAt,
+});
+
+
+
+export const mapSalesInvoice = (raw: any): SalesInvoice => ({
+  id: raw._id || raw.id,
+
+  invoiceNumber: raw.invoiceNumber,
+  customerName: raw.customerName,
+  customerGSTIN: raw.customerGSTIN,
+
+  invoiceState: raw.invoiceState,
+  paymentStatus: raw.paymentStatus,
+
+  items:
+    raw.items?.map((i: any) => ({
+      id: i._id || i.id,
+      itemId: i.item_id || i.itemId,
+      itemName: i.itemName,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      gstPercentage: i.gstPercentage,
+      totalAmount: i.totalAmount,
+    })) || [],
+
+  subtotal: raw.subtotal,
+
+  taxBreakdown: {
+  cgst: raw.taxBreakdown?.cgst || 0,
+  sgst: raw.taxBreakdown?.sgst || 0,
+  igst: raw.taxBreakdown?.igst || 0,
+  totalTax:
+    raw.taxBreakdown?.totalTax ??
+    (raw.taxBreakdown?.cgst || 0) +
+      (raw.taxBreakdown?.sgst || 0) +
+      (raw.taxBreakdown?.igst || 0),
+},
+
+  grandTotal: raw.grandTotal,
+
+  paidAmount: raw.paidAmount || 0,
+  outstandingAmount: raw.outstandingAmount || 0,
+
+  notes: raw.notes,
+
+ payments:
+  raw.payments?.map((p: any) => ({
+    id: p._id || p.id,
+    invoiceId: p.invoiceId || raw._id,
+    amount: p.amount,
+    method: p.method,
+    reference: p.reference,
+    paidAt: p.paidAt,
+    recordedBy:
+      typeof p.recordedBy === "string"
+        ? p.recordedBy
+        : p.recordedBy?.name || "",
+    journalEntryId: p.journalEntryId,
+  })) || [],
+
+  approvedBy: raw.approvedBy,
+  approvedAt: raw.approvedAt,
+  postedBy: raw.postedBy,
+  postedAt: raw.postedAt,
+
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt || raw.createdAt,
 });

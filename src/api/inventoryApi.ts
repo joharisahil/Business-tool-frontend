@@ -10,6 +10,7 @@ import {
   mapCreditNote,
   mapAuditLog,
   mapStockAdjustment,
+  mapSalesInvoice
 } from "@/pages/inventory/mapper/inventoryMapper"
 
 /* =========================================================
@@ -265,4 +266,58 @@ export const reverseJournalEntryApi = async (id: string) => {
 export const getAuditLogsApi = async () => {
   const res = await api.get("/inventory/audit");
   return res.data.logs.map(mapAuditLog);
+};
+
+/* =========================================================
+   SALES INVOICES
+========================================================= */
+export const getSalesInvoicesApi = async () => {
+  const res = await api.get("/inventory/sales-invoices");
+  return res.data.data.map(mapSalesInvoice);
+};
+
+export const getSalesInvoiceApi = async (id: string) => {
+  const res = await api.get(`/inventory/sales-invoices/${id}`);
+  return mapSalesInvoice(res.data.data);
+};
+
+export const createSalesInvoiceApi = async (payload: any) => {
+  const res = await api.post("/inventory/sales-invoices", payload);
+  return mapSalesInvoice(res.data.data);
+};
+
+export const approveSalesInvoiceApi = async (id: string) => {
+  const res = await api.patch(`/inventory/sales-invoices/${id}/approve`);
+  return mapSalesInvoice(res.data.data);
+};
+
+export const postSalesInvoiceApi = async (id: string) => {
+  const res = await api.patch(`/inventory/sales-invoices/${id}/post`);
+  return mapSalesInvoice(res.data.data);
+};
+
+export const cancelSalesInvoiceApi = async (id: string) => {
+  const res = await api.patch(`/inventory/sales-invoices/${id}/cancel`);
+  return mapSalesInvoice(res.data.data);
+};
+
+/* =========================================================
+   SALES PAYMENTS
+========================================================= */
+export const recordSalesPaymentApi = async (
+  invoiceId: string,
+  payload: any
+) => {
+  const res = await api.post(
+    `/inventory/sales-invoices/${invoiceId}/payments`,
+    payload
+  );
+  return mapSalesInvoice(res.data.data);
+};
+
+export const getSalesPaymentHistoryApi = async (invoiceId: string) => {
+  const res = await api.get(
+    `/inventory/sales-invoices/${invoiceId}/payments`
+  );
+  return res.data.data;
 };
