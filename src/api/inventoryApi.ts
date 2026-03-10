@@ -10,8 +10,8 @@ import {
   mapCreditNote,
   mapAuditLog,
   mapStockAdjustment,
-  mapSalesInvoice
-} from "@/pages/inventory/mapper/inventoryMapper"
+  mapSalesInvoice,
+} from "@/pages/inventory/mapper/inventoryMapper";
 
 /* =========================================================
    DASHBOARD
@@ -147,7 +147,10 @@ export const cancelInvoiceApi = async (id: string) => {
    PAYMENTS
 ========================================================= */
 export const recordPaymentApi = async (invoiceId: string, payload: any) => {
-  const res = await api.post(`/inventory/invoices/${invoiceId}/payments`, payload);
+  const res = await api.post(
+    `/inventory/invoices/${invoiceId}/payments`,
+    payload,
+  );
   return res.data.data;
 };
 
@@ -171,7 +174,7 @@ export const getStockTransactionsApi = async () => {
 
 export const getExpiryDashboardApi = async (days?: number) => {
   const res = await api.get("/inventory/stock/expiry", {
-    params: { days }
+    params: { days },
   });
   return res.data.data;
 };
@@ -225,7 +228,10 @@ export const seedLedgerAccountsApi = async () => {
   return res.data.data.map(mapLedgerAccount);
 };
 
-export const getTrialBalanceApi = async (fromDate?: string, toDate?: string) => {
+export const getTrialBalanceApi = async (
+  fromDate?: string,
+  toDate?: string,
+) => {
   const res = await api.get("/inventory/ledger/trial-balance", {
     params: { fromDate, toDate },
   });
@@ -234,7 +240,12 @@ export const getTrialBalanceApi = async (fromDate?: string, toDate?: string) => 
 
 export const getAccountDrilldownApi = async (
   id: string,
-  params?: { fromDate?: string; toDate?: string; page?: number; limit?: number }
+  params?: {
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    limit?: number;
+  },
 ) => {
   const res = await api.get(`/inventory/ledger/accounts/${id}/drilldown`, {
     params,
@@ -306,18 +317,135 @@ export const cancelSalesInvoiceApi = async (id: string) => {
 ========================================================= */
 export const recordSalesPaymentApi = async (
   invoiceId: string,
-  payload: any
+  payload: any,
 ) => {
   const res = await api.post(
     `/inventory/sales-invoices/${invoiceId}/payments`,
-    payload
+    payload,
   );
   return mapSalesInvoice(res.data.data);
 };
 
 export const getSalesPaymentHistoryApi = async (invoiceId: string) => {
-  const res = await api.get(
-    `/inventory/sales-invoices/${invoiceId}/payments`
-  );
+  const res = await api.get(`/inventory/sales-invoices/${invoiceId}/payments`);
+  return res.data.data;
+};
+export const getAllSalesPaymentsApi = async () => {
+  const res = await api.get("/inventory/sales-payments");
+  return res.data.data;
+};
+/* =========================================================
+   SALES CREDIT NOTES
+========================================================= */
+export const createSalesCreditNoteApi = async (payload: any) => {
+  const res = await api.post("/inventory/sales/credit-notes", payload);
+  return res.data.data;
+};
+
+export const getSalesCreditNotesApi = async () => {
+  const res = await api.get("/inventory/sales/credit-notes");
+  return res.data.data;
+};
+/* =========================================================
+   SALES REPORTS
+========================================================= */
+export const getSalesSummaryApi = async (params?: any) => {
+  const res = await api.get("/inventory/sales/reports/summary", {
+    params,
+  });
+  return res.data.data;
+};
+
+export const getGSTReportApi = async (params?: any) => {
+  const res = await api.get("/inventory/sales/reports/gst", {
+    params,
+  });
+  return res.data.data;
+};
+
+export const getReceivableAgingApi = async () => {
+  const res = await api.get("/inventory/sales/reports/receivable-aging");
+  return res.data.data;
+};
+
+export const getDailyCollectionApi = async (params?: any) => {
+  const res = await api.get("/inventory/sales/reports/daily-collection", {
+    params,
+  });
+  return res.data.data;
+};
+
+export const getCustomerLedgerApi = async (customerId: string) => {
+  const res = await api.get(`/inventory/customers/${customerId}/ledger`);
+  return res.data.data;
+};
+/* =========================================================
+   UNIT MASTER
+========================================================= */
+export const getUnitsApi = async () => {
+  const res = await api.get("/inventory/units");
+  return res.data.data;
+};
+
+export const getUnitApi = async (id: string) => {
+  const res = await api.get(`/inventory/units/${id}`);
+  return res.data.data;
+};
+
+export const createUnitApi = async (payload: any) => {
+  const res = await api.post("/inventory/units", payload);
+  return res.data.data;
+};
+
+export const updateUnitApi = async (id: string, payload: any) => {
+  const res = await api.put(`/inventory/units/${id}`, payload);
+  return res.data.data;
+};
+
+export const toggleUnitApi = async (id: string) => {
+  const res = await api.patch(`/inventory/units/${id}/toggle`);
+  return res.data.data;
+};
+
+export const previewUnitConversionApi = async (payload: any) => {
+  const res = await api.post("/inventory/units/convert", payload);
+  return res.data.data;
+};
+
+export const getRelatedUnitsApi = async (id: string) => {
+  const res = await api.get(`/inventory/units/${id}/related`);
+  return res.data.data;
+};
+
+/* =========================================================
+   CUSTOMERS
+========================================================= */
+export const getCustomersApi = async () => {
+  const res = await api.get("/inventory/customers");
+  return res.data.data.map(mapVendor); // if you create mapCustomer replace this
+};
+
+export const getCustomerApi = async (id: string) => {
+  const res = await api.get(`/inventory/customers/${id}`);
+  return res.data.data;
+};
+
+export const createCustomerApi = async (payload: any) => {
+  const res = await api.post("/inventory/customers", payload);
+  return res.data.data;
+};
+
+export const updateCustomerApi = async (id: string, payload: any) => {
+  const res = await api.put(`/inventory/customers/${id}`, payload);
+  return res.data.data;
+};
+
+export const toggleCustomerApi = async (id: string) => {
+  const res = await api.patch(`/inventory/customers/${id}/toggle`);
+  return res.data.data;
+};
+
+export const getCustomerOutstandingApi = async (customerId: string) => {
+  const res = await api.get(`/inventory/customers/${customerId}/outstanding`);
   return res.data.data;
 };

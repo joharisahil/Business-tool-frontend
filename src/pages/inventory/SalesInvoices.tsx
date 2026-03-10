@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -22,210 +29,371 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Plus,
-  Eye,
-  Trash2,
-  CheckCircle,
-  Send,
-  Ban,
-  CreditCard,
-  Lock,
-  Printer,
-} from "lucide-react";
-import { useState, useEffect, useRef } from "react";
-import { useToast } from "@/hooks/use-toast";
-import PrintInvoice from "@/components/PrintInvoice";
-import type {
-  SalesInvoice,
-  InvoiceState,
-  PaymentMethod,
-} from "./types/inventory";
-
-// TODO: Replace with actual API imports when available
-import {
   getSalesInvoicesApi,
   createSalesInvoiceApi,
   approveSalesInvoiceApi,
   postSalesInvoiceApi,
   cancelSalesInvoiceApi,
   recordSalesPaymentApi,
+  getCustomersApi,
   getItemsApi,
+  getUnitsApi,
 } from "@/api/inventoryApi";
 
-// // Stub API functions — replace with real imports
-// const getSalesInvoicesApi = async (): Promise<SalesInvoice[]> => [];
-// const createSalesInvoiceApi = async (payload: Record<string, unknown>): Promise<SalesInvoice> => {
-//   return { id: crypto.randomUUID(), invoiceNumber: `SI-${Date.now()}`, ...payload } as unknown as SalesInvoice;
-// };
-// const approveSalesInvoiceApi = async (id: string): Promise<SalesInvoice> => ({} as SalesInvoice);
-// const postSalesInvoiceApi = async (id: string): Promise<SalesInvoice> => ({} as SalesInvoice);
-// const cancelSalesInvoiceApi = async (id: string): Promise<SalesInvoice> => ({} as SalesInvoice);
-// const recordSalesPaymentApi = async (id: string, payload: Record<string, unknown>): Promise<SalesInvoice> => ({} as SalesInvoice);
-// const getItemsApi = async (): Promise<Array<{ id: string; name: string; sku: string; sellingPrice: number; isActive: boolean }>> => [];
-
-interface InventoryItem {
-  id: string;
-  name: string;
-  sku: string;
-  sellingPrice: number;
-  isActive: boolean;
-}
-
-const statusStyles: Record<string, string> = {
-  PAID: "bg-success/10 text-success border-success/20",
-  UNPAID: "bg-destructive/10 text-destructive border-destructive/20",
-  PARTIAL: "bg-warning/10 text-warning border-warning/20",
-};
+import { useEffect } from "react";
+import {
+  FilePlus,
+  Search,
+  Eye,
+  Plus,
+  Trash2,
+  CheckCircle,
+  Send,
+  Ban,
+  CreditCard,
+  Lock,
+  ArrowRightLeft,
+  ScanBarcode,
+  Printer,
+} from "lucide-react";
+import { printDocument, generateSalesInvoiceReceipt } from "@/utils/printUtils";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import type {
+  SalesInvoice,
+  SalesInvoiceItem,
+  InvoiceState,
+  SalesCategory,
+} from "@/pages/inventory/types/inventory";
 
 const stateStyles: Record<string, string> = {
-  DRAFT: "bg-muted text-muted-foreground border-border",
+  DRAFT: "bg-muted text-muted-foreground",
   APPROVED: "bg-info/10 text-info border-info/20",
   POSTED: "bg-success/10 text-success border-success/20",
   CANCELLED: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
+const paymentStyles: Record<string, string> = {
+  UNPAID: "bg-destructive/10 text-destructive border-destructive/20",
+  PARTIAL: "bg-warning/10 text-warning border-warning/20",
+  PAID: "bg-success/10 text-success border-success/20",
+  ADVANCE: "bg-accent/10 text-accent-foreground border-accent/20",
+};
+
+interface LineItemForm {
+  itemId: string;
+  description: string;
+  category: SalesCategory;
+  quantity: string;
+  unitPrice: string;
+  discount: string;
+  gstPercentage: string;
+  saleUnitId: string;
+  deductStock: boolean;
+}
+
+const emptyLine = (): LineItemForm => ({
+  itemId: "",
+  description: "",
+  category: "GOODS",
+  quantity: "",
+  unitPrice: "",
+  discount: "0",
+  gstPercentage: "18",
+  saleUnitId: "",
+  deductStock: false,
+});
+
 const SalesInvoices = () => {
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [unitsMockData, setUnitsMockData] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState("ALL");
+  const [createOpen, setCreateOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoice | null>(
     null,
   );
-  const [createOpen, setCreateOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     invoiceId: string;
     newState: InvoiceState;
     label: string;
   } | null>(null);
-  const { toast } = useToast();
-
-  const [customerName, setCustomerName] = useState("");
-  const [customerGSTIN, setCustomerGSTIN] = useState("");
-  const [notes, setNotes] = useState("");
-  const [paymentMode, setPaymentMode] = useState<"CASH" | "CREDIT">("CREDIT");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<SalesInvoice | null>(
     null,
   );
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethod>("BANK_TRANSFER");
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
   const [paymentRef, setPaymentRef] = useState("");
-  const printRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
-  const [lineItems, setLineItems] = useState<
-    Array<{
-      itemId: string;
-      quantity: string;
-      unitPrice: string;
-      gstPercentage: string;
-    }>
-  >([{ itemId: "", quantity: "", unitPrice: "", gstPercentage: "18" }]);
+  // Create form state
+  const [customerId, setCustomerId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("IMMEDIATE");
+  const [lineItems, setLineItems] = useState<LineItemForm[]>([emptyLine()]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [invoiceData, itemData] = await Promise.all([
-          getSalesInvoicesApi(),
-          getItemsApi(),
-        ]);
-        setInvoices(invoiceData);
-        setInventoryItems(itemData);
-      } catch (err) {
-        console.error("Failed to load sales invoice data", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const filtered = invoices.filter((i) => {
+    const matchSearch =
+      i.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+      i.customerName.toLowerCase().includes(search.toLowerCase());
+    const matchState = stateFilter === "ALL" || i.invoiceState === stateFilter;
+    return matchSearch && matchState;
+  });
 
-  const addLineItem = () =>
-    setLineItems((prev) => [
-      ...prev,
-      { itemId: "", quantity: "", unitPrice: "", gstPercentage: "18" },
-    ]);
+  const [barcodeInput, setBarcodeInput] = useState("");
 
+  const addLineItem = () => setLineItems((prev) => [...prev, emptyLine()]);
   const removeLineItem = (idx: number) =>
     setLineItems((prev) => prev.filter((_, i) => i !== idx));
-
-  const updateLineItem = (idx: number, field: string, value: string) =>
+  const updateLine = (idx: number, field: string, value: any) =>
     setLineItems((prev) =>
       prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)),
     );
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const calcSubtotal = () =>
-    lineItems.reduce(
-      (sum, li) =>
-        sum + parseFloat(li.quantity || "0") * parseFloat(li.unitPrice || "0"),
-      0,
-    );
-
-  const calcGst = () =>
-    lineItems.reduce((sum, li) => {
-      const base =
-        parseFloat(li.quantity || "0") * parseFloat(li.unitPrice || "0");
-      return sum + (base * parseFloat(li.gstPercentage || "0")) / 100;
-    }, 0);
-
-  const handleCreate = async () => {
-    if (
-      !customerName ||
-      lineItems.some((li) => !li.itemId || !li.quantity || !li.unitPrice)
-    ) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill customer name and all line item fields.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const loadData = async () => {
     try {
-      const payload = {
-        customerName,
-        customerGSTIN: customerGSTIN || undefined,
-        notes,
-        paymentMode,
-        items: lineItems.map((li) => ({
-          itemId: li.itemId,
-          quantity: Number(li.quantity),
-          unitPrice: Number(li.unitPrice),
-          gstPercentage: Number(li.gstPercentage),
-        })),
-      };
-      const created = await createSalesInvoiceApi(payload);
-      setInvoices((prev) => [created, ...prev]);
-      setCreateOpen(false);
-      resetCreateForm();
+      const [invoicesRes, customersRes, itemsRes, unitsRes] = await Promise.all(
+        [
+          getSalesInvoicesApi(),
+          getCustomersApi(),
+          getItemsApi(),
+          getUnitsApi(),
+        ],
+      );
+
+      setInvoices(
+  invoicesRes.map((inv: any) => ({
+    ...inv,
+    id: inv._id,
+  }))
+);
+      setCustomers(customersRes);
+      setInventoryItems(itemsRes);
+      setUnitsMockData(unitsRes);
+    } catch (err) {
       toast({
-        title: "Invoice Created",
-        description: `${created.invoiceNumber} created as Draft.`,
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to create invoice.",
+        title: "Failed to load data",
         variant: "destructive",
       });
     }
   };
 
-  const resetCreateForm = () => {
-    setCustomerName("");
-    setCustomerGSTIN("");
+  // Barcode/SKU scan handler
+  const handleBarcodeScan = (code: string) => {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+    const item = inventoryItems.find(
+      (i) =>
+        i.sku.toUpperCase() === trimmed ||
+        i.name.toUpperCase().includes(trimmed),
+    );
+    if (!item) {
+      toast({
+        title: "Item not found",
+        description: `No item matches "${code}"`,
+        variant: "destructive",
+      });
+      setBarcodeInput("");
+      return;
+    }
+    // Check if already in line items — increment qty
+    const existingIdx = lineItems.findIndex((li) => li.itemId === item.id);
+    if (existingIdx >= 0) {
+      const currentQty = parseFloat(lineItems[existingIdx].quantity || "0");
+      updateLine(existingIdx, "quantity", (currentQty + 1).toString());
+      toast({
+        title: `+1 ${item.name}`,
+        description: `Qty → ${currentQty + 1}`,
+      });
+    } else {
+      // Add new line
+      const saleUnits = getSaleUnits(item.id);
+      const defaultUnit = saleUnits.length > 0 ? saleUnits[0].id : "";
+      const newLine: LineItemForm = {
+        itemId: item.id,
+        description: item.name,
+        category: "GOODS",
+        quantity: "1",
+        unitPrice: (item.sellingPrice || item.costPrice).toString(),
+        discount: "0",
+        gstPercentage: "18",
+        saleUnitId: defaultUnit,
+        deductStock: true,
+      };
+      setLineItems((prev) => {
+        // Replace the first empty line or append
+        const emptyIdx = prev.findIndex((li) => !li.itemId && !li.description);
+        if (emptyIdx >= 0) {
+          return prev.map((li, i) => (i === emptyIdx ? newLine : li));
+        }
+        return [...prev, newLine];
+      });
+      toast({ title: "Item added", description: `${item.name} (${item.sku})` });
+    }
+    setBarcodeInput("");
+  };
+
+  // Get available sale units for an item
+  const getSaleUnits = (itemId: string) => {
+    const item = inventoryItems.find((i) => i.id === itemId);
+    if (!item?.saleUnits) return [];
+    return unitsMockData.filter((u) => item.saleUnits!.includes(u.id));
+  };
+
+  // Convert sale quantity to base quantity
+  const getBaseQty = (qty: number, saleUnitId: string) => {
+    const unit = unitsMockData.find((u) => u.id === saleUnitId);
+    if (!unit) return qty;
+    return qty * unit.conversionFactor;
+  };
+
+  // Calculate line totals
+  const calcLineTotals = (li: LineItemForm) => {
+    const qty = parseFloat(li.quantity || "0");
+    const price = parseFloat(li.unitPrice || "0");
+    const discount = parseFloat(li.discount || "0");
+    const gstPct = parseFloat(li.gstPercentage || "0");
+    const taxable = qty * price - discount;
+    const gst = (taxable * gstPct) / 100;
+    return {
+      taxable: Math.max(0, taxable),
+      gst,
+      total: Math.max(0, taxable + gst),
+    };
+  };
+
+  const calcTotals = () => {
+    let subtotal = 0,
+      totalDiscount = 0,
+      totalTax = 0;
+    lineItems.forEach((li) => {
+      const qty = parseFloat(li.quantity || "0");
+      const price = parseFloat(li.unitPrice || "0");
+      const discount = parseFloat(li.discount || "0");
+      const gstPct = parseFloat(li.gstPercentage || "0");
+      const taxable = qty * price - discount;
+      subtotal += qty * price;
+      totalDiscount += discount;
+      totalTax += (taxable * gstPct) / 100;
+    });
+    return {
+      subtotal,
+      totalDiscount,
+      totalTax,
+      grandTotal: subtotal - totalDiscount + totalTax,
+    };
+  };
+
+  const handleSelectItem = (idx: number, itemId: string) => {
+    const item = inventoryItems.find((i) => i.id === itemId);
+    if (!item) return;
+    const saleUnits = getSaleUnits(itemId);
+    const defaultUnit = saleUnits.length > 0 ? saleUnits[0].id : "";
+    updateLine(idx, "itemId", itemId);
+    updateLine(idx, "description", item.name);
+    updateLine(
+      idx,
+      "unitPrice",
+      item.sellingPrice?.toString() || item.costPrice.toString(),
+    );
+    updateLine(idx, "saleUnitId", defaultUnit);
+    updateLine(idx, "deductStock", true);
+  };
+  const handleCreate = async () => {
+    if (
+      !customerId ||
+      lineItems.some((li) => !li.description || !li.quantity || !li.unitPrice)
+    ) {
+      toast({
+        title: "Validation Error",
+        description: "Fill customer and all line item fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    
+    const year = new Date().getFullYear();
+    const nextNum = (invoices.length + 1).toString().padStart(4, "0");
+    const invoiceNumber = `INV-SAL-${year}-${nextNum}`;
+    const totals = calcTotals();
+
+   const items: SalesInvoiceItem[] = lineItems.map((li) => {
+  const { taxable, gst, total } = calcLineTotals(li);
+  const halfGst = gst / 2;
+
+  const unit = unitsMockData.find(u => u.id === li.saleUnitId);
+  const qty = parseFloat(li.quantity);
+
+  return {
+    id: crypto.randomUUID(),
+
+    description: li.description || "Item",
+    category: li.category || "GOODS",
+
+    quantity: qty,
+    unitPrice: parseFloat(li.unitPrice),
+    discount: parseFloat(li.discount || "0"),
+
+    taxableAmount: Number(taxable.toFixed(2)),
+
+    gstPercentage: parseFloat(li.gstPercentage),
+    cgstAmount: halfGst,
+    sgstAmount: halfGst,
+    igstAmount: 0,
+
+    totalAmount: total,
+
+    itemId: li.itemId || undefined,
+    deductStock: li.deductStock,
+
+    saleUnitId: li.saleUnitId || undefined,
+    saleUnitCode: unit?.shortCode,
+
+    baseQty: li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : undefined
+  };
+});
+const customer = customers.find(c => c.id === customerId);    
+const newInvoice = {
+      customer_id: customerId,
+       customerName: customer?.name || "",  
+      invoiceNumber,
+      items,
+      subtotal: totals.subtotal,
+      totalDiscount: totals.totalDiscount,
+      grandTotal: totals.grandTotal,
+      paymentTerms,
+      notes,
+    };
+
+    try {
+     const createdInvoice = await createSalesInvoiceApi(newInvoice);
+
+setInvoices(prev => [
+  { ...createdInvoice, id: createdInvoice._id || createdInvoice.id },
+  ...prev
+]);
+    } catch (err) {
+      toast({
+        title: "Failed to create invoice",
+        variant: "destructive",
+      });
+    }
+    setCustomerId("");
     setNotes("");
-    setLineItems([
-      { itemId: "", quantity: "", unitPrice: "", gstPercentage: "18" },
-    ]);
-    setPaymentMode("CREDIT");
+    setPaymentTerms("IMMEDIATE");
+    setLineItems([emptyLine()]);
+    setCreateOpen(false);
+    toast({
+      title: "Invoice Created",
+      description: `${invoiceNumber} saved as Draft.`,
+    });
   };
 
   const handleStateTransition = async (
@@ -233,319 +401,328 @@ const SalesInvoices = () => {
     newState: InvoiceState,
   ) => {
     try {
-      let updated: SalesInvoice | undefined;
-      if (newState === "APPROVED")
-        updated = await approveSalesInvoiceApi(invoiceId);
-      else if (newState === "POSTED")
-        updated = await postSalesInvoiceApi(invoiceId);
-      else if (newState === "CANCELLED")
-        updated = await cancelSalesInvoiceApi(invoiceId);
+      let updated: SalesInvoice;
 
-      if (updated) {
-        setInvoices((prev) =>
-          prev.map((inv) => (inv.id === invoiceId ? updated! : inv)),
-        );
+      if (newState === "APPROVED") {
+        updated = await approveSalesInvoiceApi(invoiceId);
       }
+
+      if (newState === "POSTED") {
+        updated = await postSalesInvoiceApi(invoiceId);
+      }
+
+      if (newState === "CANCELLED") {
+        updated = await cancelSalesInvoiceApi(invoiceId);
+      }
+
+      setInvoices((prev) =>
+        prev.map((inv) => (inv.id === invoiceId ? updated : inv)),
+      );
+
       toast({
         title: `Invoice ${newState}`,
-        description: `Invoice successfully ${newState.toLowerCase()}.`,
       });
-    } catch {
+    } catch (err) {
       toast({
-        title: "Error",
-        description: `Failed to ${newState.toLowerCase()} invoice.`,
+        title: "Operation failed",
         variant: "destructive",
       });
     }
+
     setConfirmAction(null);
   };
 
   const handleRecordPayment = async () => {
     if (!paymentInvoice || !paymentAmount || !paymentRef) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill all payment fields.",
-        variant: "destructive",
-      });
+      toast({ title: "Missing fields", variant: "destructive" });
       return;
     }
-    const amount = Number(paymentAmount);
-    if (amount > paymentInvoice.outstandingAmount) {
-      toast({
-        title: "Validation Error",
-        description: "Payment cannot exceed outstanding amount.",
-        variant: "destructive",
-      });
-      return;
-    }
+
     try {
-      const payload = { amount, method: paymentMethod, reference: paymentRef };
-      const updatedInvoice = await recordSalesPaymentApi(
-        paymentInvoice.id,
-        payload,
-      );
+      const updated = await recordSalesPaymentApi(paymentInvoice.id, {
+        amount: parseFloat(paymentAmount),
+        method: paymentMethod,
+        reference: paymentRef,
+      });
+
       setInvoices((prev) =>
-        prev.map((inv) =>
-          inv.id === paymentInvoice.id ? updatedInvoice : inv,
-        ),
+        prev.map((inv) => (inv.id === updated.id ? updated : inv)),
       );
-      setPaymentOpen(false);
-      setPaymentAmount("");
-      setPaymentRef("");
-      setPaymentInvoice(null);
+
       toast({
         title: "Payment Recorded",
-        description: "Payment successfully recorded.",
       });
-    } catch {
+    } catch (err) {
       toast({
-        title: "Error",
-        description: "Failed to record payment.",
+        title: "Payment failed",
         variant: "destructive",
       });
     }
+
+    setPaymentOpen(false);
+    setPaymentAmount("");
+    setPaymentRef("");
+    setPaymentInvoice(null);
   };
 
-  const handlePrint = (invoice: SalesInvoice) => {
-    setSelectedInvoice(invoice);
-    setTimeout(() => window.print(), 300);
-  };
+  const totals = calcTotals();
 
   return (
     <>
-      <div className="space-y-6 no-print">
-       <div className="flex items-center justify-between">
-  <div>
-    <h1 className="text-2xl font-bold">
-      Sales Invoices
-    </h1>
-    <p className="text-muted-foreground text-sm mt-1">
-      DRAFT → APPROVED → POSTED lifecycle with Accounts Receivable tracking
-    </p>
-  </div>
-  <Button
-    className="gold-gradient text-accent-foreground font-medium"
-    onClick={() => setCreateOpen(true)}
-  >
-    <Plus className="h-4 w-4 mr-2" />
-    New Invoice
-  </Button>
-</div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Sales Invoices</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Create, manage, and track sales billing
+            </p>
+          </div>
+          <Button
+            className="gold-gradient text-accent-foreground font-medium gap-2"
+            onClick={() => setCreateOpen(true)}
+          >
+            <FilePlus className="h-4 w-4" /> New Invoice
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search invoices..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2 text-xs">
+            {["ALL", "DRAFT", "APPROVED", "POSTED"].map((s) => (
+              <Badge
+                key={s}
+                variant="outline"
+                className={`cursor-pointer hover:bg-secondary ${stateFilter === s ? "bg-secondary" : ""}`}
+                onClick={() => setStateFilter(s)}
+              >
+                {s}
+              </Badge>
+            ))}
+          </div>
+        </div>
 
         <Card>
           <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">
-                Loading sales invoices...
-              </div>
-            ) : invoices.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">
-                No sales invoices found. Create your first invoice.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 font-medium text-muted-foreground">
-                        Invoice #
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">
-                        Customer
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">
-                        Date
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">
-                        State
-                      </th>
-                      <th className="text-right p-3 font-medium text-muted-foreground">
-                        Grand Total
-                      </th>
-                      <th className="text-right p-3 font-medium text-muted-foreground">
-                        Paid
-                      </th>
-                      <th className="text-right p-3 font-medium text-muted-foreground">
-                        Outstanding
-                      </th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">
-                        Payment
-                      </th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((inv) => (
-                      <tr
-                        key={inv.id}
-                        className="border-b hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="p-3 font-mono text-xs">
-                          {inv.invoiceNumber}
-                        </td>
-                        <td className="p-3">{inv.customerName}</td>
-                        <td className="p-3">
-                          {new Date(inv.createdAt).toLocaleDateString("en-IN")}
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-1.5">
-                            {inv.invoiceState === "POSTED" && (
-                              <Lock className="h-3 w-3" />
-                            )}
-                            <Badge
-                              variant="outline"
-                              className={stateStyles[inv.invoiceState]}
-                            >
-                              {inv.invoiceState}
-                            </Badge>
-                          </div>
-                        </td>
-                        <td className="p-3 text-right font-medium">
-                          ₹{inv.grandTotal.toLocaleString("en-IN")}
-                        </td>
-                        <td className="p-3 text-right">
-                          ₹{inv.paidAmount.toLocaleString("en-IN")}
-                        </td>
-                        <td className="p-3 text-right">
-                          {inv.outstandingAmount > 0
-                            ? `₹${inv.outstandingAmount.toLocaleString("en-IN")}`
-                            : "—"}
-                        </td>
-                        <td className="p-3 text-center">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Invoice #
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Customer
+                    </th>
+                    <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      State
+                    </th>
+                    <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Subtotal
+                    </th>
+                    <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Tax
+                    </th>
+                    <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Grand Total
+                    </th>
+                    <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Payment
+                    </th>
+                    <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Outstanding
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map((inv) => (
+                    <tr
+                      key={inv.id}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="px-5 py-3 font-mono text-xs font-medium">
+                        {inv.invoiceNumber}
+                      </td>
+                      <td className="px-5 py-3">
+                        <p className="text-sm font-medium">
+                          {inv.customerName}
+                        </p>
+                        {inv.customerGSTIN && (
+                          <p className="text-[10px] text-muted-foreground font-mono">
+                            {inv.customerGSTIN}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {inv.invoiceState === "POSTED" && (
+                            <Lock className="h-3 w-3 text-muted-foreground" />
+                          )}
                           <Badge
                             variant="outline"
-                            className={statusStyles[inv.paymentStatus]}
+                            className={`text-[10px] ${stateStyles[inv.invoiceState]}`}
                           >
-                            {inv.paymentStatus}
+                            {inv.invoiceState}
                           </Badge>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center justify-center gap-1">
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        ₹{inv.subtotal.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-5 py-3 text-right text-muted-foreground">
+                        ₹{inv.taxBreakdown.totalTax.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-5 py-3 text-right font-semibold">
+                        ₹{inv.grandTotal.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${paymentStyles[inv.paymentStatus]}`}
+                        >
+                          {inv.paymentStatus}
+                        </Badge>
+                      </td>
+                      <td
+                        className={`px-5 py-3 text-right font-medium ${inv.outstandingAmount > 0 ? "text-destructive" : "text-success"}`}
+                      >
+                        ₹{inv.outstandingAmount.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground">
+                        {new Date(inv.createdAt).toLocaleDateString("en-IN")}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedInvoice(inv)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              printDocument({
+                                title: `Sales Invoice - ${inv.invoiceNumber}`,
+                                content: generateSalesInvoiceReceipt({
+                                  ...inv,
+                                  paymentTerms: inv.paymentTerms || "IMMEDIATE",
+                                }),
+                              })
+                            }
+                          >
+                            <Printer className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          {inv.invoiceState === "DRAFT" && (
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setSelectedInvoice(inv)}
-                              title="View"
+                              size="sm"
+                              onClick={() =>
+                                setConfirmAction({
+                                  invoiceId: inv.id,
+                                  newState: "APPROVED",
+                                  label: "Approve",
+                                })
+                              }
                             >
-                              <Eye className="h-4 w-4" />
+                              <CheckCircle className="h-4 w-4 text-info" />
                             </Button>
-                            {inv.invoiceState === "DRAFT" && (
+                          )}
+                          {inv.invoiceState === "APPROVED" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setConfirmAction({
+                                  invoiceId: inv.id,
+                                  newState: "POSTED",
+                                  label: "Post",
+                                })
+                              }
+                            >
+                              <Send className="h-4 w-4 text-success" />
+                            </Button>
+                          )}
+                          {(inv.invoiceState === "DRAFT" ||
+                            inv.invoiceState === "APPROVED") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setConfirmAction({
+                                  invoiceId: inv.id,
+                                  newState: "CANCELLED",
+                                  label: "Cancel",
+                                })
+                              }
+                            >
+                              <Ban className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                          {inv.invoiceState === "POSTED" &&
+                            inv.outstandingAmount > 0 && (
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                  setConfirmAction({
-                                    invoiceId: inv.id,
-                                    newState: "APPROVED",
-                                    label: "Approve",
-                                  })
-                                }
-                                title="Approve"
+                                size="sm"
+                                onClick={() => {
+                                  setPaymentInvoice(inv);
+                                  setPaymentOpen(true);
+                                }}
                               >
-                                <CheckCircle className="h-4 w-4" />
+                                <CreditCard className="h-4 w-4 text-accent-foreground" />
                               </Button>
                             )}
-                            {inv.invoiceState === "APPROVED" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                  setConfirmAction({
-                                    invoiceId: inv.id,
-                                    newState: "POSTED",
-                                    label: "Post",
-                                  })
-                                }
-                                title="Post"
-                              >
-                                <Send className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {(inv.invoiceState === "DRAFT" ||
-                              inv.invoiceState === "APPROVED") && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                  setConfirmAction({
-                                    invoiceId: inv.id,
-                                    newState: "CANCELLED",
-                                    label: "Cancel",
-                                  })
-                                }
-                                title="Cancel"
-                              >
-                                <Ban className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {inv.invoiceState === "POSTED" &&
-                              inv.outstandingAmount > 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => {
-                                    setPaymentInvoice(inv);
-                                    setPaymentOpen(true);
-                                  }}
-                                  title="Record Payment"
-                                >
-                                  <CreditCard className="h-4 w-4" />
-                                </Button>
-                              )}
-                            {inv.invoiceState === "POSTED" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handlePrint(inv)}
-                                title="Print Invoice"
-                              >
-                                <Printer className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="px-5 py-10 text-center text-muted-foreground"
+                      >
+                        No invoices found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Print Area — hidden on screen, visible on print */}
-      {selectedInvoice && (
-        <PrintInvoice ref={printRef} invoice={selectedInvoice} />
-      )}
-
-      {/* Confirm State Transition */}
+      {/* ─── State Transition Confirm ─── */}
       <AlertDialog
         open={!!confirmAction}
         onOpenChange={() => setConfirmAction(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmAction?.newState === "POSTED" && "Post Invoice?"}
-              {confirmAction?.newState === "APPROVED" && "Approve Invoice?"}
-              {confirmAction?.newState === "CANCELLED" && "Cancel Invoice?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{confirmAction?.label} Invoice?</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.newState === "POSTED" &&
-                "This will lock the invoice permanently. Stock levels will be deducted and journal entries (Accounts Receivable Dr, Revenue Cr, GST Cr, COGS entries) will be created automatically. This action cannot be undone."}
+                "This will lock the invoice. Stock will be deducted and journal entries (AR Dr / Revenue Cr / GST Cr) created. Cannot be undone."}
               {confirmAction?.newState === "APPROVED" &&
-                "This will approve the invoice and allow it to be posted. Make sure all details are correct before approving."}
+                "Approve for posting. Ensure all details are correct."}
               {confirmAction?.newState === "CANCELLED" &&
-                "This will cancel the invoice. No stock or ledger changes will occur. This action cannot be undone."}
+                "Cancel this invoice permanently."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -560,39 +737,27 @@ const SalesInvoices = () => {
               }
               className={
                 confirmAction?.newState === "CANCELLED"
-                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  : ""
+                  ? "bg-destructive text-destructive-foreground"
+                  : "gold-gradient text-accent-foreground"
               }
             >
-              {confirmAction?.newState === "POSTED" && (
-                <>
-                  <Lock className="h-4 w-4 mr-1" /> Post & Lock Invoice
-                </>
-              )}
-              {confirmAction?.newState === "APPROVED" && (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-1" /> Approve Invoice
-                </>
-              )}
-              {confirmAction?.newState === "CANCELLED" && (
-                <>
-                  <Ban className="h-4 w-4 mr-1" /> Cancel Invoice
-                </>
-              )}
+              {confirmAction?.label}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* View Invoice Dialog */}
+      {/* ─── View Invoice ─── */}
       <Dialog
         open={!!selectedInvoice}
         onOpenChange={() => setSelectedInvoice(null)}
       >
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span>{selectedInvoice?.invoiceNumber}</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <DialogTitle className="font-mono">
+                {selectedInvoice?.invoiceNumber}
+              </DialogTitle>
               {selectedInvoice && (
                 <Badge
                   variant="outline"
@@ -601,23 +766,14 @@ const SalesInvoices = () => {
                   {selectedInvoice.invoiceState}
                 </Badge>
               )}
-              {selectedInvoice?.invoiceState === "POSTED" && (
-                <Lock className="h-4 w-4 text-muted-foreground" />
-              )}
-            </DialogTitle>
+            </div>
           </DialogHeader>
           {selectedInvoice && (
             <div className="space-y-4">
-              {/* Meta info */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Customer</p>
                   <p className="font-medium">{selectedInvoice.customerName}</p>
-                  {selectedInvoice.customerGSTIN && (
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {selectedInvoice.customerGSTIN}
-                    </p>
-                  )}
                 </div>
                 <div>
                   <p className="text-muted-foreground">Date</p>
@@ -627,70 +783,72 @@ const SalesInvoices = () => {
                     )}
                   </p>
                 </div>
-                {selectedInvoice.approvedBy && (
+                {selectedInvoice.customerGSTIN && (
                   <div>
-                    <p className="text-muted-foreground">Approved By</p>
-                    <p className="font-medium">
-                      {/* {selectedInvoice.approvedBy} ·{" "} */}
-                      {new Date(selectedInvoice.approvedAt!).toLocaleDateString(
-                        "en-IN",
-                      )}
+                    <p className="text-muted-foreground">GSTIN</p>
+                    <p className="font-mono text-xs">
+                      {selectedInvoice.customerGSTIN}
                     </p>
                   </div>
                 )}
-                {selectedInvoice.postedBy && (
-                  <div>
-                    <p className="text-muted-foreground">Posted By</p>
-                    <p className="font-medium">
-                      {/* {selectedInvoice.postedBy} ·{" "} */}
-                      {new Date(selectedInvoice.postedAt!).toLocaleDateString(
-                        "en-IN",
-                      )}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-muted-foreground">Terms</p>
+                  <p>{selectedInvoice.paymentTerms}</p>
+                </div>
               </div>
-
               {selectedInvoice.invoiceState === "POSTED" && (
-                <div className="flex items-center gap-2 text-xs p-3 rounded-md bg-muted text-muted-foreground border">
-                  <Lock className="h-3.5 w-3.5" />
-                  This invoice is locked (POSTED). Modifications require a
-                  credit note or reversal entry to maintain audit integrity.
+                <div className="rounded-lg border border-success/20 bg-success/5 p-3 text-xs text-success flex items-center gap-2">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  Locked (POSTED). Use credit notes for corrections.
                 </div>
               )}
-
-              {/* Items */}
-              <div className="overflow-x-auto">
+              <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left p-2 font-medium text-muted-foreground">
-                        Item
+                    <tr className="bg-muted/30 border-b">
+                      <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">
+                        Description
                       </th>
-                      <th className="text-right p-2 font-medium text-muted-foreground">
+                      <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">
+                        Unit
+                      </th>
+                      <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">
                         Qty
                       </th>
-                      <th className="text-right p-2 font-medium text-muted-foreground">
-                        Unit Price
+                      <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">
+                        Price
                       </th>
-                      <th className="text-right p-2 font-medium text-muted-foreground">
+                      <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">
                         GST %
                       </th>
-                      <th className="text-right p-2 font-medium text-muted-foreground">
+                      <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">
                         Total
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y">
                     {selectedInvoice.items.map((li) => (
-                      <tr key={li.id} className="border-b">
-                        <td className="p-2">{li.itemName}</td>
-                        <td className="p-2 text-right">{li.quantity}</td>
-                        <td className="p-2 text-right">
+                      <tr key={li.id}>
+                        <td className="px-4 py-2">
+                          {li.description || li.itemName || "Item"}
+                          {li.baseQty && li.saleUnitCode && (
+                            <span className="ml-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              <ArrowRightLeft className="inline h-2.5 w-2.5 mr-0.5" />
+                              {li.baseQty} base
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs font-mono">
+                          {li.saleUnitCode || "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right">{li.quantity}</td>
+                        <td className="px-4 py-2 text-right">
                           ₹{li.unitPrice.toLocaleString("en-IN")}
                         </td>
-                        <td className="p-2 text-right">{li.gstPercentage}%</td>
-                        <td className="p-2 text-right font-medium">
+                        <td className="px-4 py-2 text-right">
+                          {li.gstPercentage}%
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium">
                           ₹{li.totalAmount.toLocaleString("en-IN")}
                         </td>
                       </tr>
@@ -698,16 +856,23 @@ const SalesInvoices = () => {
                   </tbody>
                 </table>
               </div>
-
-              {/* Totals */}
               <div className="flex justify-end">
-                <div className="w-64 space-y-1 text-sm">
+                <div className="w-72 space-y-1 text-sm border rounded-lg p-3 bg-muted/30">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>
                       ₹{selectedInvoice.subtotal.toLocaleString("en-IN")}
                     </span>
                   </div>
+                  {selectedInvoice.totalDiscount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Discount</span>
+                      <span>
+                        -₹
+                        {selectedInvoice.totalDiscount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">CGST</span>
                     <span>
@@ -726,32 +891,21 @@ const SalesInvoices = () => {
                       )}
                     </span>
                   </div>
-                  {selectedInvoice.taxBreakdown.igst > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">IGST</span>
-                      <span>
-                        ₹
-                        {selectedInvoice.taxBreakdown.igst.toLocaleString(
-                          "en-IN",
-                        )}
-                      </span>
-                    </div>
-                  )}
                   <div className="flex justify-between font-bold border-t pt-1">
                     <span>Grand Total</span>
                     <span>
                       ₹{selectedInvoice.grandTotal.toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between border-t pt-1">
                     <span className="text-muted-foreground">Paid</span>
-                    <span>
+                    <span className="text-success">
                       ₹{selectedInvoice.paidAmount.toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <div className="flex justify-between font-semibold">
+                  <div className="flex justify-between font-bold">
                     <span>Outstanding</span>
-                    <span>
+                    <span className="text-destructive">
                       ₹
                       {selectedInvoice.outstandingAmount.toLocaleString(
                         "en-IN",
@@ -760,271 +914,418 @@ const SalesInvoices = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Payment history */}
-              {selectedInvoice.payments.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">
-                    Payment History (Cash/Bank Dr → Accounts Receivable Cr)
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="text-left p-2 font-medium text-muted-foreground">
-                            Date
-                          </th>
-                          <th className="text-left p-2 font-medium text-muted-foreground">
-                            Method
-                          </th>
-                          <th className="text-left p-2 font-medium text-muted-foreground">
-                            Reference
-                          </th>
-                          <th className="text-right p-2 font-medium text-muted-foreground">
-                            Amount
-                          </th>
-                          <th className="text-left p-2 font-medium text-muted-foreground">
-                            Journal Ref
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedInvoice.payments.map((p) => (
-                          <tr key={p.id} className="border-b">
-                            <td className="p-2">
-                              {new Date(p.paidAt).toLocaleDateString("en-IN")}
-                            </td>
-                            <td className="p-2">
-                              <Badge variant="outline" className="text-[10px]">
-                                {p.method.replace("_", " ")}
-                              </Badge>
-                            </td>
-                            <td className="p-2 font-mono">{p.reference}</td>
-                            <td className="p-2 text-right font-medium">
-                              ₹{p.amount.toLocaleString("en-IN")}
-                            </td>
-                            <td className="p-2 font-mono text-muted-foreground">
-                              {p.journalEntryId}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Print button in dialog for POSTED invoices */}
-              {selectedInvoice.invoiceState === "POSTED" && (
-                <div className="flex justify-end pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePrint(selectedInvoice)}
-                  >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print Invoice
-                  </Button>
-                </div>
-              )}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    printDocument({
+                      title: `Sales Invoice - ${selectedInvoice.invoiceNumber}`,
+                      content: generateSalesInvoiceReceipt({
+                        ...selectedInvoice,
+                        paymentTerms:
+                          selectedInvoice.paymentTerms || "IMMEDIATE",
+                      }),
+                    });
+                  }}
+                >
+                  <Printer className="h-4 w-4" /> Print Receipt
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Create Invoice Dialog */}
+      {/* ─── Create Invoice ─── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Sales Invoice</DialogTitle>
+            <DialogTitle>New Sales Invoice</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-5">
+            {/* Header */}
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Customer Name *</Label>
-                <Input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Customer name"
-                />
+                <Label>Customer *</Label>
+                <Select value={customerId} onValueChange={setCustomerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers
+                      .filter((c) => c.isActive)
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} {c.gstin ? `(${c.gstin.slice(0, 5)}…)` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label>Customer GSTIN</Label>
+                <Label>Invoice # (Auto)</Label>
                 <Input
-                  value={customerGSTIN}
-                  onChange={(e) => setCustomerGSTIN(e.target.value)}
-                  placeholder="Optional GSTIN"
+                  value={`INV-SAL-${new Date().getFullYear()}-${(invoices.length + 1).toString().padStart(4, "0")}`}
+                  disabled
                   className="font-mono"
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Payment Mode *</Label>
-              <Select
-                value={paymentMode}
-                onValueChange={(v) => setPaymentMode(v as "CASH" | "CREDIT")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CREDIT">Credit Sale</SelectItem>
-                  <SelectItem value="CASH">Cash Sale</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label>Payment Terms</Label>
+                <Select value={paymentTerms} onValueChange={setPaymentTerms}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="IMMEDIATE">Immediate</SelectItem>
+                    <SelectItem value="NET_15">Net 15</SelectItem>
+                    <SelectItem value="NET_30">Net 30</SelectItem>
+                    <SelectItem value="NET_45">Net 45</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Line Items</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addLineItem}
-                >
-                  <Plus className="h-3 w-3 mr-1" /> Add Item
+            {/* Barcode Scanner */}
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-info/40 bg-info/5">
+              <ScanBarcode className="h-5 w-5 text-info shrink-0" />
+              <div className="flex-1">
+                <Input
+                  placeholder="Scan barcode or type SKU and press Enter..."
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleBarcodeScan(barcodeInput);
+                    }
+                  }}
+                  className="font-mono"
+                  autoFocus
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBarcodeScan(barcodeInput)}
+                disabled={!barcodeInput.trim()}
+              >
+                Add
+              </Button>
+            </div>
+
+            {/* Line Items */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-semibold">Line Items</Label>
+                <Button variant="outline" size="sm" onClick={addLineItem}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Line
                 </Button>
               </div>
-              <div className="space-y-2">
-                {lineItems.map((li, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-[1fr_80px_100px_80px_40px] gap-2 items-end"
-                  >
-                    <div>
-                      {idx === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          Item
-                        </Label>
+              <div className="space-y-3">
+                {lineItems.map((li, idx) => {
+                  const item = inventoryItems.find((i) => i.id === li.itemId);
+                  const saleUnits = li.itemId ? getSaleUnits(li.itemId) : [];
+                  const { total } = calcLineTotals(li);
+                  const selectedUnit = unitsMockData.find(
+                    (u) => u.id === li.saleUnitId,
+                  );
+                  const qty = parseFloat(li.quantity || "0");
+                  const baseQty = li.saleUnitId
+                    ? getBaseQty(qty, li.saleUnitId)
+                    : qty;
+
+                  return (
+                    <div
+                      key={idx}
+                      className="border rounded-lg p-3 space-y-3 bg-card"
+                    >
+                      {/* Row 1: Item or description */}
+                      <div className="grid grid-cols-[1fr_120px_32px] gap-2 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Item / Description
+                          </Label>
+                          <div className="flex gap-2">
+                            <Select
+                              value={li.itemId}
+                              onValueChange={(v) => handleSelectItem(idx, v)}
+                            >
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="Select item (or type below)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {inventoryItems
+                                  .filter((i) => i.isActive)
+                                  .map((i) => (
+                                    <SelectItem key={i.id} value={i.id}>
+                                      {i.name} ({i.sku}) — Stock:{" "}
+                                      {i.currentStock} {i.unit}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={li.category}
+                              onValueChange={(v) =>
+                                updateLine(idx, "category", v)
+                              }
+                            >
+                              <SelectTrigger className="w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="GOODS">Goods</SelectItem>
+                                <SelectItem value="SERVICES">
+                                  Services
+                                </SelectItem>
+                                <SelectItem value="OTHER">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {!li.itemId && (
+                            <Input
+                              placeholder="Custom description (services, etc.)"
+                              value={li.description}
+                              onChange={(e) =>
+                                updateLine(idx, "description", e.target.value)
+                              }
+                              className="mt-1"
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            GST %
+                          </Label>
+                          <Select
+                            value={li.gstPercentage}
+                            onValueChange={(v) =>
+                              updateLine(idx, "gstPercentage", v)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">0%</SelectItem>
+                              <SelectItem value="5">5%</SelectItem>
+                              <SelectItem value="12">12%</SelectItem>
+                              <SelectItem value="18">18%</SelectItem>
+                              <SelectItem value="28">28%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          {lineItems.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeLineItem(idx)}
+                              className="h-9 w-9 p-0"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Row 2: Qty, Unit, Price, Discount */}
+                      <div className="grid grid-cols-5 gap-2 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Qty
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={li.quantity}
+                            onChange={(e) =>
+                              updateLine(idx, "quantity", e.target.value)
+                            }
+                            placeholder="0"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Sale Unit
+                          </Label>
+                          {saleUnits.length > 0 ? (
+                            <Select
+                              value={li.saleUnitId}
+                              onValueChange={(v) =>
+                                updateLine(idx, "saleUnitId", v)
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Unit" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {saleUnits.map((u) => (
+                                  <SelectItem key={u.id} value={u.id}>
+                                    {u.shortCode} ({u.name})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              value={item?.unit || "PCS"}
+                              disabled
+                              className="bg-muted"
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Unit Price (₹)
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={li.unitPrice}
+                            onChange={(e) =>
+                              updateLine(idx, "unitPrice", e.target.value)
+                            }
+                            placeholder="0"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Discount (₹)
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={li.discount}
+                            onChange={(e) =>
+                              updateLine(idx, "discount", e.target.value)
+                            }
+                            placeholder="0"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">
+                            Line Total
+                          </p>
+                          <p className="font-semibold text-sm">
+                            ₹
+                            {total.toLocaleString("en-IN", {
+                              maximumFractionDigits: 2,
+                            })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Unit conversion preview */}
+                      {li.saleUnitId && qty > 0 && selectedUnit && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded px-3 py-1.5">
+                          <ArrowRightLeft className="h-3 w-3 text-info" />
+                          <span>
+                            {qty} {selectedUnit.shortCode} ={" "}
+                            <strong className="text-foreground">
+                              {baseQty.toFixed(selectedUnit.decimalPrecision)}{" "}
+                              {selectedUnit.baseUnitCode ||
+                                selectedUnit.shortCode}
+                            </strong>{" "}
+                            (base)
+                          </span>
+                          {item && baseQty > item.currentStock && (
+                            <span className="ml-auto text-destructive font-medium">
+                              ⚠ Exceeds stock ({item.currentStock})
+                            </span>
+                          )}
+                          {item && baseQty <= item.currentStock && (
+                            <span className="ml-auto text-success">
+                              ✓ In stock
+                            </span>
+                          )}
+                        </div>
                       )}
-                      <Select
-                        value={li.itemId}
-                        onValueChange={(v) => {
-                          const item = inventoryItems.find((i) => i.id === v);
-                          updateLineItem(idx, "itemId", v);
-                          if (item)
-                            updateLineItem(
-                              idx,
-                              "unitPrice",
-                              item.sellingPrice.toString(),
-                            );
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select item" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {inventoryItems
-                            .filter((i) => i.isActive)
-                            .map((i) => (
-                              <SelectItem key={i.id} value={i.id}>
-                                {i.name} ({i.sku})
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
                     </div>
-                    <div>
-                      {idx === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          Qty
-                        </Label>
-                      )}
-                      <Input
-                        type="number"
-                        value={li.quantity}
-                        onChange={(e) =>
-                          updateLineItem(idx, "quantity", e.target.value)
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      {idx === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          Unit Price
-                        </Label>
-                      )}
-                      <Input
-                        type="number"
-                        value={li.unitPrice}
-                        onChange={(e) =>
-                          updateLineItem(idx, "unitPrice", e.target.value)
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      {idx === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          GST %
-                        </Label>
-                      )}
-                      <Input
-                        type="number"
-                        value={li.gstPercentage}
-                        onChange={(e) =>
-                          updateLineItem(idx, "gstPercentage", e.target.value)
-                        }
-                        placeholder="18"
-                      />
-                    </div>
-                    <div>
-                      {lineItems.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeLineItem(idx)}
-                          className="h-9 w-9"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <div className="w-64 space-y-1 text-sm">
+            {/* Totals */}
+            <div className="flex justify-between items-start">
+              <div className="space-y-2 flex-1 max-w-sm">
+                <Label>Notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Invoice notes..."
+                  rows={2}
+                />
+              </div>
+              <div className="w-72 space-y-1 text-sm border rounded-lg p-3 bg-muted/30">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>₹{calcSubtotal().toLocaleString("en-IN")}</span>
+                  <span>
+                    ₹
+                    {totals.subtotal.toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                {totals.totalDiscount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Discount</span>
+                    <span>
+                      -₹{totals.totalDiscount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">CGST</span>
+                  <span>
+                    ₹
+                    {(totals.totalTax / 2).toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">GST</span>
-                  <span>₹{calcGst().toLocaleString("en-IN")}</span>
+                  <span className="text-muted-foreground">SGST</span>
+                  <span>
+                    ₹
+                    {(totals.totalTax / 2).toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
                 </div>
                 <div className="flex justify-between font-bold border-t pt-1">
                   <span>Grand Total</span>
                   <span>
-                    ₹{(calcSubtotal() + calcGst()).toLocaleString("en-IN")}
+                    ₹
+                    {totals.grandTotal.toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes..."
-                rows={2}
-              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreate}>Create Invoice (Draft)</Button>
+            <Button
+              onClick={handleCreate}
+              className="gold-gradient text-accent-foreground"
+            >
+              Create Invoice (Draft)
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Record Payment Dialog */}
+      {/* ─── Record Payment ─── */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -1072,20 +1373,17 @@ const SalesInvoices = () => {
               </div>
               <div className="space-y-2">
                 <Label>Payment Method *</Label>
-                <Select
-                  value={paymentMethod}
-                  onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
-                >
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="UPI">UPI</SelectItem>
+                    <SelectItem value="CASH">Cash</SelectItem>
                     <SelectItem value="BANK_TRANSFER">
                       Bank Transfer (NEFT/RTGS)
                     </SelectItem>
-                    <SelectItem value="CASH">Cash</SelectItem>
                     <SelectItem value="CHEQUE">Cheque</SelectItem>
-                    <SelectItem value="UPI">UPI</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1094,7 +1392,7 @@ const SalesInvoices = () => {
                 <Input
                   value={paymentRef}
                   onChange={(e) => setPaymentRef(e.target.value)}
-                  placeholder="NEFT/UTR/Cheque/UPI reference"
+                  placeholder="Transaction/UTR/Cheque ref"
                 />
               </div>
             </div>
@@ -1105,9 +1403,7 @@ const SalesInvoices = () => {
             </Button>
             <Button
               onClick={handleRecordPayment}
-              disabled={
-                !paymentInvoice || paymentInvoice.outstandingAmount === 0
-              }
+              className="gold-gradient text-accent-foreground"
             >
               Record Payment
             </Button>

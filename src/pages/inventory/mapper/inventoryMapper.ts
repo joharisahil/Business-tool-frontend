@@ -33,6 +33,9 @@ export const mapCategory = (raw: any): InventoryCategory => ({
   name: raw.name,
   description: raw.description || "",
   itemCount: raw.itemCount || 0,
+  isActive: raw.isActive ?? true, // ✅ IMPORTANT
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt,
 });
 
 /* =====================================================
@@ -43,8 +46,17 @@ export const mapInventoryItem = (raw: any): InventoryItem => ({
   id: mapId(raw),
   sku: raw.sku,
   name: raw.name,
-  categoryId: raw.category_id || raw.category?._id,
-  categoryName: raw.category?.name || raw.categoryName || "",
+
+  categoryId:
+    typeof raw.category_id === "object"
+      ? raw.category_id._id || raw.category_id.id
+      : raw.category_id || raw.category?._id,
+
+  categoryName:
+    typeof raw.category_id === "object"
+      ? raw.category_id.name
+      : raw.category?.name || raw.categoryName || "",
+
   unit: raw.unit,
   costPrice: raw.costPrice,
   sellingPrice: raw.sellingPrice,
@@ -57,7 +69,6 @@ export const mapInventoryItem = (raw: any): InventoryItem => ({
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt,
 });
-
 /* =====================================================
    INVENTORY BATCH
 ===================================================== */
@@ -300,4 +311,104 @@ export const mapSalesInvoice = (raw: any): SalesInvoice => ({
 
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt || raw.createdAt,
+  
+});
+
+/* =====================================================
+   CUSTOMER
+===================================================== */
+
+export const mapCustomer = (raw: any) => ({
+  id: mapId(raw),
+
+  name: raw.name,
+  email: raw.email || "",
+  phone: raw.phone || "",
+
+  gstin: raw.gstin || "",
+  panNumber: raw.panNumber || "",
+
+  address: raw.address || "",
+
+  customerType: raw.customerType,
+  paymentTerms: raw.paymentTerms,
+
+  creditLimit: raw.creditLimit || 0,
+  openingBalance: raw.openingBalance || 0,
+
+  isActive: raw.isActive ?? true,
+
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt,
+});
+/* =====================================================
+   SALES CREDIT NOTE
+===================================================== */
+
+export const mapSalesCreditNote = (raw: any) => ({
+  id: mapId(raw),
+
+  creditNoteNumber: raw.creditNoteNumber,
+
+  originalInvoiceId:
+    raw.originalInvoiceId || raw.originalInvoice?._id,
+
+  originalInvoiceNumber:
+    raw.originalInvoiceNumber || raw.originalInvoice?.invoiceNumber,
+
+  customerId: raw.customer_id,
+  customerName: raw.customer?.name || raw.customerName,
+
+  items: raw.items || [],
+
+  subtotal: raw.subtotal,
+  gstAmount: raw.gstAmount,
+  grandTotal: raw.grandTotal,
+
+  reason: raw.reason,
+
+  journalEntryId: raw.journalEntryId,
+
+  createdBy: mapUserName(raw.createdBy),
+  createdAt: raw.createdAt,
+});
+/* =====================================================
+   UNIT
+===================================================== */
+
+export const mapUnit = (raw: any) => ({
+  id: mapId(raw),
+
+  name: raw.name,
+  symbol: raw.symbol,
+
+  category: raw.category,
+
+  baseUnit: raw.baseUnit,
+  conversionFactor: raw.conversionFactor,
+
+  isBaseUnit: raw.isBaseUnit,
+  isActive: raw.isActive ?? true,
+
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt,
+});
+/* =====================================================
+   PAYMENT RECORD
+===================================================== */
+
+export const mapPaymentRecord = (raw: any): PaymentRecord => ({
+  id: mapId(raw),
+
+  invoiceId: raw.invoiceId,
+  amount: raw.amount,
+
+  method: raw.method,
+  reference: raw.reference,
+
+  paidAt: raw.paidAt,
+
+  recordedBy: mapUserName(raw.recordedBy),
+
+  journalEntryId: raw.journalEntryId,
 });

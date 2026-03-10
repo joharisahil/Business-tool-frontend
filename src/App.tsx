@@ -1,72 +1,101 @@
 import { Toaster } from "@/components/ui/toaster";
-//import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Layout } from "@/components/layout/Layout"
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 
+import { Layout } from "@/components/layout/Layout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AuthProvider } from "@/contexts/AuthContext";
+
+// Inventory Pages
 import InventoryDashboard from "./pages/inventory/InventoryDashboard";
+import InventoryItems from "./pages/inventory/InventoryItems";
+import PurchaseInvoices from "./pages/inventory/PurchaseInvoices";
+import Vendors from "./pages/inventory/Vendors";
 import StockTransactions from "./pages/inventory/StockTransactions";
 import StockAdjustments from "./pages/inventory/StockAdjustments";
 import ExpiryMonitoring from "./pages/inventory/ExpiryMonitoring";
-import PurchaseInvoices from "./pages/inventory/PurchaseInvoices";
-import SalesInvoices from "./pages/inventory/SalesInvoices";
-import Vendors from "./pages/inventory/Vendors";
-import Ledger from "./pages/inventory/GeneralLedger";
-import AuditTrail from "./pages/inventory/AuditTrail";
-import InventoryItems from "./pages/inventory/InventoryItems";
-import CreateCategory from "./pages/inventory/CreateCategory";
-import NotFound from "./pages/NotFound";
 import GeneralLedger from "./pages/inventory/GeneralLedger";
+import AuditTrail from "./pages/inventory/AuditTrail";
+import CreateCategory from "./pages/inventory/CreateCategory";
+
+// Sales Pages
+import Customers from "./pages/inventory/Customers";
+import SalesInvoices from "./pages/inventory/SalesInvoices";
+import SalesPayments from "./pages/inventory/SalesPayments";
+import SalesReports from "./pages/inventory/SalesReports";
+import GSTReports from "./pages/inventory/GSTReports";
+
+// Auth
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import { AuthProvider } from "@/contexts/AuthContext";
+
+// Other
+import NotFound from "./pages/NotFound";
+
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      
+
       <BrowserRouter>
-      <AuthProvider>
-<Routes>
+        <AuthProvider>
 
-  {/* Public Routes */}
-  <Route path="/login" element={<Login />} />
-  <Route path="/register" element={<Register />} />
+          <Routes>
 
-  {/* Root Redirect */}
-  <Route path="/" element={<Navigate to="/login" replace />} />
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-  {/* Protected Layout Wrapper */}
-  <Route
-    element={
-      <ProtectedRoute>
-        <Layout />
-      </ProtectedRoute>
-    }
-  >
-    <Route path="/dashboard" element={<InventoryDashboard />} />
-    <Route path="/inventory" element={<InventoryItems />} />
-    <Route path="/invoices" element={<PurchaseInvoices />} />
-    <Route path="/sales" element={<SalesInvoices />} />
-    <Route path="/vendors" element={<Vendors />} />
-    <Route path="/transactions" element={<StockTransactions />} />
-    <Route path="/adjustments" element={<StockAdjustments />} />
-    <Route path="/expiry" element={<ExpiryMonitoring />} />
-    <Route path="/ledger" element={<GeneralLedger />} />
-    <Route path="/audit" element={<AuditTrail />} />
-    <Route path="/categories/create" element={<CreateCategory />} />
-  </Route>
+            {/* Default redirect */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-  {/* Fallback */}
-  <Route path="*" element={<NotFound />} />
+            {/* Protected Layout */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
 
-</Routes>
-</AuthProvider>
-</BrowserRouter>
+              {/* Dashboard */}
+              <Route path="/dashboard" element={<InventoryDashboard />} />
+
+              {/* SALES */}
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/sales" element={<SalesInvoices />} />
+              <Route path="/sales/payments" element={<SalesPayments />} />
+              <Route path="/sales/reports" element={<SalesReports />} />
+              <Route path="/sales/gst" element={<GSTReports />} />
+
+              {/* INVENTORY */}
+              <Route path="/inventory" element={<InventoryItems />} />
+              <Route path="/transactions" element={<StockTransactions />} />
+              <Route path="/adjustments" element={<StockAdjustments />} />
+              <Route path="/expiry" element={<ExpiryMonitoring />} />
+              <Route path="/categories/create" element={<CreateCategory />} />
+
+              {/* PROCUREMENT */}
+              <Route path="/invoices" element={<PurchaseInvoices />} />
+              <Route path="/vendors" element={<Vendors />} />
+
+              {/* FINANCE */}
+              <Route path="/ledger" element={<GeneralLedger />} />
+              <Route path="/audit" element={<AuditTrail />} />
+
+            </Route>
+
+            {/* Fallback */}
+            <Route path="*" element={<NotFound />} />
+
+          </Routes>
+
+        </AuthProvider>
+      </BrowserRouter>
+
     </TooltipProvider>
   </QueryClientProvider>
 );

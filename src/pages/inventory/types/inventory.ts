@@ -7,31 +7,59 @@ export type LedgerAccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | '
 export type JournalEntryType = 'DEBIT' | 'CREDIT';
 export type TaxType = 'CGST' | 'SGST' | 'IGST';
 export type PaymentTerms = 'IMMEDIATE' | 'NET_15' | 'NET_30' | 'NET_45' | 'NET_60';
+export type UnitCategory = 'MEASUREMENT' | 'PACKAGING' | 'COUNTING';
+
+export interface UnitMaster {
+  id: string;
+  name: string;
+  shortCode: string;
+  category: UnitCategory;
+  baseUnitId: string | null;
+  baseUnitName?: string;
+  baseUnitCode?: string;
+  conversionFactor: number;
+  decimalPrecision: number;
+  isActive: boolean;
+  createdAt: string;
+}
 
 export interface InventoryCategory {
   id: string;
   name: string;
   description: string;
   itemCount: number;
+  isActive: boolean;   // ✅ ADD THIS
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface InventoryItem {
-  id: string;
-  sku: string;
-  name: string;
-  categoryId: string;
-  categoryName: string;
-  unit: string;
-  costPrice: number;
-  sellingPrice?: number;
-  currentStock: number;
-  minimumStock: number;
-  isActive: boolean;
-  isPerishable: boolean;
-  shelfLifeDays?: number;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  sku: string
+  name: string
+
+  categoryId: string
+  categoryName: string
+
+  unit: string
+
+  purchaseUnitId?: string
+  saleUnits?: string[]
+
+  costPrice: number
+  sellingPrice?: number
+
+  currentStock: number
+  minimumStock: number
+
+  isActive: boolean
+
+  isPerishable: boolean
+  shelfLifeDays?: number
+
+  createdBy: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface InventoryBatch {
@@ -252,38 +280,114 @@ export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CHEQUE" | "UPI";
 
 
 
+export type SalesCategory = "GOODS" | "SERVICES" | "OTHER";
+
 export interface SalesInvoiceItem {
   id: string;
-  itemId: string;
-  itemName: string;
+  itemId?: string;
+
+  description: string;
+   itemName?: string;
+
+  category: SalesCategory;
+
   quantity: number;
+
   unitPrice: number;
+
+  discount: number;
+
+  taxableAmount: number;
+
   gstPercentage: number;
+
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+
   totalAmount: number;
+
+  deductStock?: boolean;
+
+  saleUnitCode?: string;
+  baseQty?: number;
 }
-
-
 export interface SalesInvoice {
   id: string;
+ _id?: string; 
   invoiceNumber: string;
+
+
+  customerId?: string;
   customerName: string;
   customerGSTIN?: string;
-  invoiceState: InvoiceState;
-  paymentStatus: PaymentStatus;
+
   items: SalesInvoiceItem[];
+
   subtotal: number;
+
+  totalDiscount: number;
+
   taxBreakdown: TaxBreakdown;
+
   grandTotal: number;
+
+  invoiceState: InvoiceState;
+
+  paymentStatus: PaymentStatus;
+
   paidAmount: number;
   outstandingAmount: number;
+  advanceAmount?: number;
+
+  paymentTerms?: PaymentTerms;
+
   notes?: string;
+
   payments: PaymentRecord[];
+
   approvedBy?: string;
   approvedAt?: string;
+
   postedBy?: string;
   postedAt?: string;
+
   createdAt: string;
   updatedAt: string;
 }
 
+/* =====================================================
+   CUSTOMER
+===================================================== */
 
+export type CustomerType =
+  | "RETAIL"
+  | "WHOLESALE"
+  | "DISTRIBUTOR"
+  | "CORPORATE"
+  | "ONLINE";
+
+export interface Customer {
+  _id: string;
+
+  name: string;
+  companyName?: string;
+
+  customerType: CustomerType;
+
+  email: string;
+  phone: string;
+  address: string;
+
+  gstin?: string;
+
+  creditLimit: number;
+  paymentTerms: PaymentTerms;
+
+  isActive: boolean;
+
+  notes?: string;
+
+  createdAt: string;
+  updatedAt?: string;
+}

@@ -1,7 +1,7 @@
 import { NavLink } from '@/components/NavLink';
 import {
   LayoutDashboard, Package, FileText, Users, ArrowLeftRight,
-  Hotel, ChevronLeft, ChevronRight, BookOpen, Shield, SlidersHorizontal, CalendarX2,
+  Hotel, ChevronLeft, ChevronRight, BookOpen, Shield, SlidersHorizontal, CalendarX2,UserCheck,Receipt,CreditCard,BarChart3,IndianRupee
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -9,40 +9,47 @@ import { Label } from '@radix-ui/react-dropdown-menu';
 
 const navGroups = [
   {
-    label: 'Overview',
+    label: "Overview",
     items: [
-      { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     ],
   },
+
   {
-    label: 'Inventory',
+    label: "Sales & Billing",
     items: [
-      { to: '/inventory', icon: Package, label: 'Inventory Items' },
-      { to: '/transactions', icon: ArrowLeftRight, label: 'Stock Transactions' },
-      { to: '/adjustments', icon: SlidersHorizontal, label: 'Stock Adjustments' },
-      { to: '/expiry', icon: CalendarX2, label: 'Expiry Monitoring' },
-      { to: "/categories/create", icon: CalendarX2, label: 'Create Category' },
+      { to: "/customers", icon: UserCheck, label: "Customers" },
+      { to: "/sales", icon: Receipt, label: "Sales Invoices" },
+      { to: "/sales/payments", icon: CreditCard, label: "Sales Payments" },
+      { to: "/sales/reports", icon: BarChart3, label: "Sales Reports" },
+      { to: "/sales/gst", icon: IndianRupee, label: "GST Reports" },
     ],
   },
+
   {
-    label: 'Procurement',
+    label: "Inventory",
     items: [
-      { to: '/invoices', icon: FileText, label: 'Purchase Invoices' },
-      { to: '/vendors', icon: Users, label: 'Vendors' },
+      { to: "/inventory", icon: Package, label: "Inventory Items" },
+      { to: "/transactions", icon: ArrowLeftRight, label: "Stock Transactions" },
+      { to: "/adjustments", icon: SlidersHorizontal, label: "Stock Adjustments" },
+      { to: "/expiry", icon: CalendarX2, label: "Expiry Monitoring" },
+      { to: "/categories/create", icon: CalendarX2, label: "Create Category" },
     ],
   },
+
   {
-    label: 'Finance',
+    label: "Procurement",
     items: [
-      { to: '/ledger', icon: BookOpen, label: 'General Ledger' },
-      { to: '/audit', icon: Shield, label: 'Audit Trail' },
+      { to: "/invoices", icon: FileText, label: "Purchase Invoices" },
+      { to: "/vendors", icon: Users, label: "Vendors" },
     ],
   },
+
   {
-    label: 'Sales',
+    label: "Finance",
     items: [
-      { to: '/sales', icon: BookOpen, label: 'Billing' },
-     // { to: '/audit', icon: Shield, label: 'Audit Trail' },
+      { to: "/ledger", icon: BookOpen, label: "General Ledger" },
+      { to: "/audit", icon: Shield, label: "Audit Trail" },
     ],
   },
 ];
