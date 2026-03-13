@@ -58,13 +58,20 @@ export const mapInventoryItem = (raw: any): InventoryItem => ({
       : raw.category?.name || raw.categoryName || "",
 
   unit: raw.unit,
+
+  saleUnits: raw.saleUnits || [],   // ⭐ ADD THIS
+
+  purchaseUnitId: raw.purchaseUnit_id || null, // optional but good
+
   costPrice: raw.costPrice,
   sellingPrice: raw.sellingPrice,
   currentStock: raw.currentStock,
   minimumStock: raw.minimumStock,
+
   isActive: raw.isActive,
   isPerishable: raw.isPerishable,
   shelfLifeDays: raw.shelfLifeDays,
+
   createdBy: mapUserName(raw.createdBy),
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt,

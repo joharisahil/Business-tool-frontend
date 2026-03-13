@@ -168,14 +168,24 @@ const SalesInvoices = () => {
       );
 
       setInvoices(
-  invoicesRes.map((inv: any) => ({
-    ...inv,
-    id: inv._id,
-  }))
-);
+        invoicesRes.map((inv: any) => ({
+          ...inv,
+          id: inv._id || inv.id,
+        })),
+      );
       setCustomers(customersRes);
-      setInventoryItems(itemsRes);
-      setUnitsMockData(unitsRes);
+      setInventoryItems(
+        itemsRes.map((i: any) => ({
+          ...i,
+          id: i._id || i.id || i.sku,
+        })),
+      );
+      setUnitsMockData(
+        unitsRes.map((u: any) => ({
+          ...u,
+          id: u._id, // always use _id
+        })),
+      );
     } catch (err) {
       toast({
         title: "Failed to load data",
@@ -203,6 +213,7 @@ const SalesInvoices = () => {
       return;
     }
     // Check if already in line items — increment qty
+
     const existingIdx = lineItems.findIndex((li) => li.itemId === item.id);
     if (existingIdx >= 0) {
       const currentQty = parseFloat(lineItems[existingIdx].quantity || "0");
@@ -242,8 +253,16 @@ const SalesInvoices = () => {
   // Get available sale units for an item
   const getSaleUnits = (itemId: string) => {
     const item = inventoryItems.find((i) => i.id === itemId);
-    if (!item?.saleUnits) return [];
-    return unitsMockData.filter((u) => item.saleUnits!.includes(u.id));
+
+    if (!item) return [];
+
+    // fallback: if item has no saleUnits use base unit
+    if (!item.saleUnits || item.saleUnits.length === 0) {
+      const baseUnit = unitsMockData.find((u) => u.shortCode === item.unit);
+      return baseUnit ? [baseUnit] : [];
+    }
+
+    return unitsMockData.filter((u) => item.saleUnits.includes(u.id));
   };
 
   // Convert sale quantity to base quantity
@@ -286,12 +305,15 @@ const SalesInvoices = () => {
       subtotal,
       totalDiscount,
       totalTax,
-      grandTotal: subtotal - totalDiscount + totalTax,
+      grandTotal: Number((subtotal - totalDiscount + totalTax).toFixed(2)),
     };
   };
 
   const handleSelectItem = (idx: number, itemId: string) => {
     const item = inventoryItems.find((i) => i.id === itemId);
+    console.log("Selected item", item);
+    console.log("Sale units", item.saleUnits);
+    console.log("Units list", unitsMockData);
     if (!item) return;
     const saleUnits = getSaleUnits(itemId);
     const defaultUnit = saleUnits.length > 0 ? saleUnits[0].id : "";
@@ -318,51 +340,55 @@ const SalesInvoices = () => {
       return;
     }
 
-    
     const year = new Date().getFullYear();
     const nextNum = (invoices.length + 1).toString().padStart(4, "0");
     const invoiceNumber = `INV-SAL-${year}-${nextNum}`;
     const totals = calcTotals();
 
-   const items: SalesInvoiceItem[] = lineItems.map((li) => {
-  const { taxable, gst, total } = calcLineTotals(li);
-  const halfGst = gst / 2;
+    const items: SalesInvoiceItem[] = lineItems.map((li) => {
+      const { taxable, gst, total } = calcLineTotals(li);
 
-  const unit = unitsMockData.find(u => u.id === li.saleUnitId);
-  const qty = parseFloat(li.quantity);
+      const taxableAmount = Number(taxable.toFixed(2));
+      const gstAmount = Number(gst.toFixed(2));
+      const totalAmount = Number(total.toFixed(2));
 
-  return {
-    id: crypto.randomUUID(),
+      const halfGst = Number((gstAmount / 2).toFixed(2));
 
-    description: li.description || "Item",
-    category: li.category || "GOODS",
+      const unit = unitsMockData.find((u) => u.id === li.saleUnitId);
+      const qty = parseFloat(li.quantity);
 
-    quantity: qty,
-    unitPrice: parseFloat(li.unitPrice),
-    discount: parseFloat(li.discount || "0"),
+      return {
+        id: crypto.randomUUID(),
 
-    taxableAmount: Number(taxable.toFixed(2)),
+        description: li.description || "Item",
+        category: li.category || "GOODS",
 
-    gstPercentage: parseFloat(li.gstPercentage),
-    cgstAmount: halfGst,
-    sgstAmount: halfGst,
-    igstAmount: 0,
+        quantity: qty,
+        unitPrice: parseFloat(li.unitPrice),
+        discount: parseFloat(li.discount || "0"),
 
-    totalAmount: total,
+        taxableAmount: taxableAmount,
 
-    itemId: li.itemId || undefined,
-    deductStock: li.deductStock,
+        gstPercentage: parseFloat(li.gstPercentage),
+        cgstAmount: halfGst,
+        sgstAmount: halfGst,
+        igstAmount: 0,
 
-    saleUnitId: li.saleUnitId || undefined,
-    saleUnitCode: unit?.shortCode,
+        totalAmount: totalAmount,
 
-    baseQty: li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : undefined
-  };
-});
-const customer = customers.find(c => c.id === customerId);    
-const newInvoice = {
+        itemId: li.itemId || undefined,
+        deductStock: li.deductStock,
+
+        saleUnitId: li.saleUnitId || undefined,
+        saleUnitCode: unit?.shortCode,
+
+        baseQty: li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : undefined,
+      };
+    });
+    const customer = customers.find((c) => c.id === customerId);
+    const newInvoice = {
       customer_id: customerId,
-       customerName: customer?.name || "",  
+      customerName: customer?.name || "",
       invoiceNumber,
       items,
       subtotal: totals.subtotal,
@@ -373,12 +399,12 @@ const newInvoice = {
     };
 
     try {
-     const createdInvoice = await createSalesInvoiceApi(newInvoice);
+      const createdInvoice = await createSalesInvoiceApi(newInvoice);
 
-setInvoices(prev => [
-  { ...createdInvoice, id: createdInvoice._id || createdInvoice.id },
-  ...prev
-]);
+      setInvoices((prev) => [
+        { ...createdInvoice, id: createdInvoice._id || createdInvoice.id },
+        ...prev,
+      ]);
     } catch (err) {
       toast({
         title: "Failed to create invoice",
@@ -394,6 +420,33 @@ setInvoices(prev => [
       title: "Invoice Created",
       description: `${invoiceNumber} saved as Draft.`,
     });
+  };
+  const handleSaleUnitChange = (idx: number, saleUnitId: string) => {
+    const line = lineItems[idx];
+    const item = inventoryItems.find((i) => i.id === line.itemId);
+    const unit = unitsMockData.find((u) => u.id === saleUnitId);
+
+    if (!item || !unit) {
+      updateLine(idx, "saleUnitId", saleUnitId);
+      return;
+    }
+
+    // adjust unit price based on conversion
+    const basePrice = item.sellingPrice || item.costPrice;
+
+    const convertedPrice = basePrice / unit.conversionFactor;
+
+    setLineItems((prev) =>
+      prev.map((li, i) =>
+        i === idx
+          ? {
+              ...li,
+              saleUnitId,
+              unitPrice: convertedPrice.toFixed(2),
+            }
+          : li,
+      ),
+    );
   };
 
   const handleStateTransition = async (
@@ -1157,14 +1210,14 @@ setInvoices(prev => [
                             <Select
                               value={li.saleUnitId}
                               onValueChange={(v) =>
-                                updateLine(idx, "saleUnitId", v)
+                                handleSaleUnitChange(idx, v)
                               }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Unit" />
                               </SelectTrigger>
                               <SelectContent>
-                                {saleUnits.map((u) => (
+                                {saleUnits.map((u: any) => (
                                   <SelectItem key={u.id} value={u.id}>
                                     {u.shortCode} ({u.name})
                                   </SelectItem>
@@ -1229,7 +1282,7 @@ setInvoices(prev => [
                             {qty} {selectedUnit.shortCode} ={" "}
                             <strong className="text-foreground">
                               {baseQty.toFixed(selectedUnit.decimalPrecision)}{" "}
-                              {selectedUnit.baseUnitCode ||
+                              {selectedUnit.baseUnit_id?.shortCode ||
                                 selectedUnit.shortCode}
                             </strong>{" "}
                             (base)
@@ -1239,6 +1292,7 @@ setInvoices(prev => [
                               ⚠ Exceeds stock ({item.currentStock})
                             </span>
                           )}
+
                           {item && baseQty <= item.currentStock && (
                             <span className="ml-auto text-success">
                               ✓ In stock

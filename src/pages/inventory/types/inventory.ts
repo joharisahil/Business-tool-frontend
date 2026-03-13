@@ -1,13 +1,28 @@
-export type TransactionType = 'IN' | 'OUT' | 'ADJUSTMENT';
-export type ReferenceType = 'PURCHASE' | 'ROOM_USAGE' | 'WASTAGE' | 'MANUAL' | 'ADJUSTMENT';
-export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
-export type UserRole = 'Admin' | 'Accountant' | 'FrontDesk';
-export type InvoiceState = 'DRAFT' | 'APPROVED' | 'POSTED' | 'CANCELLED';
-export type LedgerAccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
-export type JournalEntryType = 'DEBIT' | 'CREDIT';
-export type TaxType = 'CGST' | 'SGST' | 'IGST';
-export type PaymentTerms = 'IMMEDIATE' | 'NET_15' | 'NET_30' | 'NET_45' | 'NET_60';
-export type UnitCategory = 'MEASUREMENT' | 'PACKAGING' | 'COUNTING';
+export type TransactionType = "IN" | "OUT" | "ADJUSTMENT";
+export type ReferenceType =
+  | "PURCHASE"
+  | "ROOM_USAGE"
+  | "WASTAGE"
+  | "MANUAL"
+  | "ADJUSTMENT";
+export type PaymentStatus = "UNPAID" | "PARTIAL" | "PAID";
+export type UserRole = "Admin" | "Accountant" | "FrontDesk";
+export type InvoiceState = "DRAFT" | "APPROVED" | "POSTED" | "CANCELLED";
+export type LedgerAccountType =
+  | "ASSET"
+  | "LIABILITY"
+  | "EQUITY"
+  | "REVENUE"
+  | "EXPENSE";
+export type JournalEntryType = "DEBIT" | "CREDIT";
+export type TaxType = "CGST" | "SGST" | "IGST";
+export type PaymentTerms =
+  | "IMMEDIATE"
+  | "NET_15"
+  | "NET_30"
+  | "NET_45"
+  | "NET_60";
+export type UnitCategory = "MEASUREMENT" | "PACKAGING" | "COUNTING";
 
 export interface UnitMaster {
   id: string;
@@ -28,38 +43,38 @@ export interface InventoryCategory {
   name: string;
   description: string;
   itemCount: number;
-  isActive: boolean;   // ✅ ADD THIS
+  isActive: boolean; // ✅ ADD THIS
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface InventoryItem {
-  id: string
-  sku: string
-  name: string
+  id: string;
+  sku: string;
+  name: string;
 
-  categoryId: string
-  categoryName: string
+  categoryId: string;
+  categoryName: string;
 
-  unit: string
+  unit: string;
 
-  purchaseUnitId?: string
-  saleUnits?: string[]
+  purchaseUnitId?: string;
+  saleUnits?: string[];
 
-  costPrice: number
-  sellingPrice?: number
+  costPrice: number;
+  sellingPrice?: number;
 
-  currentStock: number
-  minimumStock: number
+  currentStock: number;
+  minimumStock: number;
 
-  isActive: boolean
+  isActive: boolean;
 
-  isPerishable: boolean
-  shelfLifeDays?: number
+  isPerishable: boolean;
+  shelfLifeDays?: number;
 
-  createdBy: string
-  createdAt: string
-  updatedAt: string
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InventoryBatch {
@@ -146,7 +161,7 @@ export interface PaymentRecord {
   id: string;
   invoiceId: string;
   amount: number;
-  method: 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'UPI';
+  method: "CASH" | "BANK_TRANSFER" | "CHEQUE" | "UPI";
   reference: string;
   paidAt: string;
   recordedBy: string;
@@ -205,7 +220,12 @@ export interface JournalEntryLine {
 export interface JournalEntry {
   id: string;
   entryNumber: string;
-  referenceType: 'PURCHASE_INVOICE' | 'PAYMENT' | 'CREDIT_NOTE' | 'ADJUSTMENT' | 'REVERSAL';
+  referenceType:
+    | "PURCHASE_INVOICE"
+    | "PAYMENT"
+    | "CREDIT_NOTE"
+    | "ADJUSTMENT"
+    | "REVERSAL";
   referenceId: string;
   referenceNumber: string;
   lines: JournalEntryLine[];
@@ -238,9 +258,29 @@ export interface CreditNote {
 
 export interface AuditLogEntry {
   id: string;
-  entityType: 'PURCHASE_INVOICE' | 'PAYMENT' | 'CREDIT_NOTE' | 'STOCK_TRANSACTION' | 'JOURNAL_ENTRY' | 'VENDOR' | 'INVENTORY_ITEM' | 'STOCK_ADJUSTMENT';
+  entityType:
+    | "PURCHASE_INVOICE"
+    | "PAYMENT"
+    | "CREDIT_NOTE"
+    | "STOCK_TRANSACTION"
+    | "JOURNAL_ENTRY"
+    | "VENDOR"
+    | "INVENTORY_ITEM"
+    | "STOCK_ADJUSTMENT";
   entityId: string;
-  action: 'CREATED' | 'UPDATED' | 'APPROVED' | 'POSTED' | 'CANCELLED' | 'REVERSED' | 'PAYMENT_RECORDED' | 'ACTIVATED' | 'DEACTIVATED' | 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTED';
+  action:
+    | "CREATED"
+    | "UPDATED"
+    | "APPROVED"
+    | "POSTED"
+    | "CANCELLED"
+    | "REVERSED"
+    | "PAYMENT_RECORDED"
+    | "ACTIVATED"
+    | "DEACTIVATED"
+    | "STOCK_IN"
+    | "STOCK_OUT"
+    | "ADJUSTED";
   description: string;
   beforeValue?: string;
   afterValue?: string;
@@ -255,9 +295,15 @@ export interface StockAdjustment {
   itemId: string;
   itemName: string;
   itemSku: string;
-  type: 'IN' | 'OUT';
+  type: "IN" | "OUT";
   quantity: number;
-  reason: 'DAMAGED' | 'EXPIRED' | 'THEFT' | 'CORRECTION' | 'OPENING_STOCK' | 'OTHER';
+  reason:
+    | "DAMAGED"
+    | "EXPIRED"
+    | "THEFT"
+    | "CORRECTION"
+    | "OPENING_STOCK"
+    | "OTHER";
   notes: string;
   balanceBefore: number;
   balanceAfter: number;
@@ -278,8 +324,6 @@ export interface DashboardStats {
 
 export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CHEQUE" | "UPI";
 
-
-
 export type SalesCategory = "GOODS" | "SERVICES" | "OTHER";
 
 export interface SalesInvoiceItem {
@@ -287,7 +331,7 @@ export interface SalesInvoiceItem {
   itemId?: string;
 
   description: string;
-   itemName?: string;
+  itemName?: string;
 
   category: SalesCategory;
 
@@ -314,9 +358,8 @@ export interface SalesInvoiceItem {
 }
 export interface SalesInvoice {
   id: string;
- _id?: string; 
+  _id?: string;
   invoiceNumber: string;
-
 
   customerId?: string;
   customerName: string;
