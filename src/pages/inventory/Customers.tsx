@@ -105,9 +105,12 @@ const { data: customerList = [], isLoading } = useQuery<Customer[]>({
     },
   });
 
- const handleSave = (data: Customer) => {
-  if (data._id) {
-    updateMutation.mutate({ id: data._id, payload: data });
+const handleSave = (data: Customer) => {
+  if (editCustomer) {
+    updateMutation.mutate({
+      id: editCustomer.id,
+      payload: data,
+    });
   } else {
     createMutation.mutate(data);
   }
@@ -125,10 +128,11 @@ const { data: customerList = [], isLoading } = useQuery<Customer[]>({
     toggleMutation.mutate(id);
   };
 
-  const openEdit = (c: Customer) => {
-    setEditCustomer(c);
-    setDialogOpen(true);
-  };
+ const openEdit = (c: Customer) => {
+  console.log("EDIT CUSTOMER", c);
+  setEditCustomer(c);
+  setDialogOpen(true);
+};
 
   const openCreate = () => {
     setEditCustomer(null);
@@ -317,7 +321,7 @@ const { data: customerList = [], isLoading } = useQuery<Customer[]>({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleToggle(c._id)}
+                              onClick={() => handleToggle((c.id || c._id)!)}
                             >
                               {c.isActive ? (
                                 <ToggleRight className="h-4 w-4 text-success" />

@@ -156,6 +156,8 @@ const SalesInvoices = () => {
     loadData();
   }, []);
 
+  const [units, setUnits] = useState<any[]>([]);
+
   const loadData = async () => {
     try {
       const [invoicesRes, customersRes, itemsRes, unitsRes] = await Promise.all(
@@ -173,17 +175,21 @@ const SalesInvoices = () => {
           id: inv._id || inv.id,
         })),
       );
+
       setCustomers(customersRes);
+
       setInventoryItems(
         itemsRes.map((i: any) => ({
           ...i,
-          id: i._id || i.id || i.sku,
+          id: i._id || i.id,
+          saleUnits: i.saleUnits?.map((id: any) => id.toString()) || [],
         })),
       );
-      setUnitsMockData(
+
+      setUnits(
         unitsRes.map((u: any) => ({
           ...u,
-          id: u._id, // always use _id
+          id: u._id,
         })),
       );
     } catch (err) {
@@ -256,67 +262,85 @@ const SalesInvoices = () => {
 
     if (!item) return [];
 
-    // fallback: if item has no saleUnits use base unit
     if (!item.saleUnits || item.saleUnits.length === 0) {
-      const baseUnit = unitsMockData.find((u) => u.shortCode === item.unit);
+      const baseUnit = units.find(
+        (u) => u.shortCode?.toUpperCase() === item.unit?.toUpperCase(),
+      );
       return baseUnit ? [baseUnit] : [];
     }
 
-    return unitsMockData.filter((u) => item.saleUnits.includes(u.id));
+    const saleUnitIds = item.saleUnits.map((id: any) => id.toString());
+
+    return units.filter((u) => saleUnitIds.includes(u.id?.toString()));
   };
 
   // Convert sale quantity to base quantity
   const getBaseQty = (qty: number, saleUnitId: string) => {
-    const unit = unitsMockData.find((u) => u.id === saleUnitId);
+    const unit = units.find((u) => u.id === saleUnitId);
     if (!unit) return qty;
     return qty * unit.conversionFactor;
   };
 
   // Calculate line totals
   const calcLineTotals = (li: LineItemForm) => {
+  const qty = parseFloat(li.quantity || "0");
+  const price = parseFloat(li.unitPrice || "0");
+  const discount = parseFloat(li.discount || "0");
+  const gstPct = parseFloat(li.gstPercentage || "0");
+
+  const baseQty = li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : qty;
+
+  const taxable = baseQty * price - discount;
+  const gst = (taxable * gstPct) / 100;
+
+  return {
+    taxable: Math.max(0, taxable),
+    gst,
+    total: Math.max(0, taxable + gst),
+  };
+};
+
+  const calcTotals = () => {
+  let subtotal = 0,
+      totalDiscount = 0,
+      totalTax = 0;
+
+  lineItems.forEach((li) => {
     const qty = parseFloat(li.quantity || "0");
     const price = parseFloat(li.unitPrice || "0");
     const discount = parseFloat(li.discount || "0");
     const gstPct = parseFloat(li.gstPercentage || "0");
-    const taxable = qty * price - discount;
-    const gst = (taxable * gstPct) / 100;
-    return {
-      taxable: Math.max(0, taxable),
-      gst,
-      total: Math.max(0, taxable + gst),
-    };
-  };
 
-  const calcTotals = () => {
-    let subtotal = 0,
-      totalDiscount = 0,
-      totalTax = 0;
-    lineItems.forEach((li) => {
-      const qty = parseFloat(li.quantity || "0");
-      const price = parseFloat(li.unitPrice || "0");
-      const discount = parseFloat(li.discount || "0");
-      const gstPct = parseFloat(li.gstPercentage || "0");
-      const taxable = qty * price - discount;
-      subtotal += qty * price;
-      totalDiscount += discount;
-      totalTax += (taxable * gstPct) / 100;
-    });
-    return {
-      subtotal,
-      totalDiscount,
-      totalTax,
-      grandTotal: Number((subtotal - totalDiscount + totalTax).toFixed(2)),
-    };
+    const baseQty = li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : qty;
+
+    const taxable = baseQty * price - discount;
+
+    subtotal += baseQty * price;
+    totalDiscount += discount;
+    totalTax += (taxable * gstPct) / 100;
+  });
+
+  return {
+    subtotal: Number(subtotal.toFixed(2)),
+    totalDiscount: Number(totalDiscount.toFixed(2)),
+    totalTax: Number(totalTax.toFixed(2)),
+    grandTotal: Number((subtotal - totalDiscount + totalTax).toFixed(2)),
   };
+};
 
   const handleSelectItem = (idx: number, itemId: string) => {
     const item = inventoryItems.find((i) => i.id === itemId);
     console.log("Selected item", item);
-    console.log("Sale units", item.saleUnits);
+    console.log("Item saleUnits raw:", item?.saleUnits);
     console.log("Units list", unitsMockData);
+
     if (!item) return;
+
     const saleUnits = getSaleUnits(itemId);
+    console.log("Filtered sale units:", saleUnits);
+
     const defaultUnit = saleUnits.length > 0 ? saleUnits[0].id : "";
+
     updateLine(idx, "itemId", itemId);
     updateLine(idx, "description", item.name);
     updateLine(
@@ -354,7 +378,7 @@ const SalesInvoices = () => {
 
       const halfGst = Number((gstAmount / 2).toFixed(2));
 
-      const unit = unitsMockData.find((u) => u.id === li.saleUnitId);
+      const unit = units.find((u) => u.id === li.saleUnitId);
       const qty = parseFloat(li.quantity);
 
       return {
@@ -362,9 +386,8 @@ const SalesInvoices = () => {
 
         description: li.description || "Item",
         category: li.category || "GOODS",
-
-        quantity: qty,
-        unitPrice: parseFloat(li.unitPrice),
+quantity: li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : qty,
+unitPrice: parseFloat(li.unitPrice),
         discount: parseFloat(li.discount || "0"),
 
         taxableAmount: taxableAmount,
@@ -421,33 +444,10 @@ const SalesInvoices = () => {
       description: `${invoiceNumber} saved as Draft.`,
     });
   };
-  const handleSaleUnitChange = (idx: number, saleUnitId: string) => {
-    const line = lineItems[idx];
-    const item = inventoryItems.find((i) => i.id === line.itemId);
-    const unit = unitsMockData.find((u) => u.id === saleUnitId);
-
-    if (!item || !unit) {
-      updateLine(idx, "saleUnitId", saleUnitId);
-      return;
-    }
-
-    // adjust unit price based on conversion
-    const basePrice = item.sellingPrice || item.costPrice;
-
-    const convertedPrice = basePrice / unit.conversionFactor;
-
-    setLineItems((prev) =>
-      prev.map((li, i) =>
-        i === idx
-          ? {
-              ...li,
-              saleUnitId,
-              unitPrice: convertedPrice.toFixed(2),
-            }
-          : li,
-      ),
-    );
-  };
+const handleSaleUnitChange = (idx: number, saleUnitId: string) => {
+  // Only update the unit
+  updateLine(idx, "saleUnitId", saleUnitId);
+};
 
   const handleStateTransition = async (
     invoiceId: string,
@@ -1082,7 +1082,7 @@ const SalesInvoices = () => {
                   const item = inventoryItems.find((i) => i.id === li.itemId);
                   const saleUnits = li.itemId ? getSaleUnits(li.itemId) : [];
                   const { total } = calcLineTotals(li);
-                  const selectedUnit = unitsMockData.find(
+                  const selectedUnit = units.find(
                     (u) => u.id === li.saleUnitId,
                   );
                   const qty = parseFloat(li.quantity || "0");

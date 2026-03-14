@@ -411,7 +411,9 @@ export type CustomerType =
   | "ONLINE";
 
 export interface Customer {
-  _id: string;
+
+  id?: string
+  _id?: string
 
   name: string;
   companyName?: string;

@@ -26,19 +26,50 @@ const SalesReports = () => {
     loadReports();
   }, []);
 
-  const loadReports = async () => {
-    try {
-      const summaryData = await getSalesSummaryApi();
-      const agingData = await getReceivableAgingApi();
+const loadReports = async () => {
+  try {
+    const [summaryRes, agingRes] = await Promise.all([
+      getSalesSummaryApi(),
+      getReceivableAgingApi(),
+    ]);
 
-      setSummary(summaryData);
-      setAging(agingData);
-    } catch (err) {
-      console.error("Failed to load sales reports", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const mappedSummary = {
+      totalRevenue: summaryRes.summary.totalRevenue,
+      totalTax: summaryRes.summary.totalTax,
+      totalCollected: summaryRes.summary.totalCollected,
+      totalReceivable: summaryRes.summary.totalOutstanding,
+      postedInvoices: summaryRes.summary.totalInvoices,
+
+      categoryRevenue: summaryRes.byCategory.map((c: any) => ({
+        category: c._id || "UNCATEGORIZED",
+        amount: c.revenue,
+      })),
+    };
+
+    const mappedAging = {
+      current: agingRes.buckets.current,
+      days31to60: agingRes.buckets.days31_60,
+      days61to90: agingRes.buckets.days61_90,
+      above90: agingRes.buckets.days90plus,
+
+      outstandingInvoices: agingRes.details.map((inv: any) => ({
+        id: inv.invoiceNumber,
+        invoiceNumber: inv.invoiceNumber,
+        customerName: inv.customerName || "Unknown",
+        outstandingAmount: inv.outstanding,
+        paymentStatus: inv.outstanding > 0 ? "UNPAID" : "PAID",
+      })),
+    };
+
+    setSummary(mappedSummary);
+    setAging(mappedAging);
+
+  } catch (err) {
+    console.error("Failed to load sales reports", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const totalRevenue = summary?.totalRevenue || 0;
   const totalTax = summary?.totalTax || 0;
@@ -195,7 +226,7 @@ const SalesReports = () => {
                     </div>
 
                     <span className="text-sm font-semibold">
-                      ₹{Math.round(bucket.amount).toLocaleString("en-IN")}
+                      ₹{Number(bucket.amount).toFixed(2)}
                     </span>
                   </div>
                 ))}

@@ -129,9 +129,9 @@ const Dashboard = () => {
           getInvoicesApi(),
         ]);
 
-        setDashboard(dashData);
-        setTransactions(txnData || []);
-        setInvoices(invoiceData || []);
+       setDashboard(dashData?.data || dashData);
+setTransactions(txnData?.data || []);
+setInvoices(invoiceData?.data || []);
       } catch (err) {
         toast({
           title: "Error",
@@ -166,7 +166,7 @@ const Dashboard = () => {
 
           <StatCard
             title="Low Stock"
-            value={(dashboard?.lowStockCount ?? 0).toString()}
+            value={(dashboard?.lowStockItems ?? 0).toString()}
             icon={AlertTriangle}
             variant="warning"
             sub="Items below minimum"
@@ -186,10 +186,10 @@ const Dashboard = () => {
 
           <StatCard
             title="Expiring Soon"
-            value={(dashboard?.expiringSoon ?? 0).toString()}
+            value={(dashboard?.expiringCount ?? 0).toString()}
             icon={Clock}
             variant={
-              (dashboard?.expiringSoon ?? 0) > 0 ? "warning" : "default"
+              (dashboard?.expiringCount ?? 0) > 0 ? "warning" : "default"
             }
             sub="Within 30 days"
           />
@@ -203,7 +203,7 @@ const Dashboard = () => {
           <StatCard
             title="Total Payable"
             value={`₹${(
-              (dashboard?.totalOutstanding ?? 0) / 1000
+              (dashboard?.totalPayable ?? 0) / 1000
             ).toFixed(1)}K`}
             icon={IndianRupee}
             variant="danger"
@@ -305,7 +305,7 @@ const Dashboard = () => {
             <CardContent className="p-0">
               {transactions.slice(0, 5).map((txn) => (
                 <div
-                  key={txn.id}
+                  key={txn._id || txn.id}
                   className="px-5 py-3 flex justify-between border-b"
                 >
                   <div className="flex gap-3 items-center">
@@ -346,7 +346,7 @@ const Dashboard = () => {
                 )
                 .map((inv) => (
                   <div
-                    key={inv.id}
+                    key={inv.id || inv._id}
                     className="px-5 py-3 flex justify-between border-b"
                   >
                     <div>

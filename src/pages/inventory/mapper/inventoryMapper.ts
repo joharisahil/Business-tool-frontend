@@ -265,16 +265,27 @@ export const mapSalesInvoice = (raw: any): SalesInvoice => ({
   invoiceState: raw.invoiceState,
   paymentStatus: raw.paymentStatus,
 
-  items:
-    raw.items?.map((i: any) => ({
-      id: i._id || i.id,
-      itemId: i.item_id || i.itemId,
-      itemName: i.itemName,
-      quantity: i.quantity,
-      unitPrice: i.unitPrice,
-      gstPercentage: i.gstPercentage,
-      totalAmount: i.totalAmount,
-    })) || [],
+items:
+  raw.items?.map((i: any) => ({
+    id: i._id || i.id,
+
+    itemId: i.item_id || i.itemId,
+
+    description: i.description || i.itemName || "",
+    itemName: i.itemName || i.description || "",
+
+    quantity: i.quantity,
+    unitPrice: i.unitPrice,
+
+    gstPercentage: i.gstPercentage,
+
+    discount: i.discount || 0,
+
+    totalAmount: i.totalAmount,
+
+    saleUnitCode: i.saleUnitCode || "",
+    baseQty: i.baseQty || undefined,
+  })) || [],
 
   subtotal: raw.subtotal,
 

@@ -86,6 +86,7 @@ const units = unitsRaw.map((u: any) => ({
     name: "",
     sku: "",
     categoryId: "",
+    
     purchaseUnitId: "",
     saleUnitIds: [] as string[],
     costPrice: "",
@@ -132,12 +133,20 @@ const units = unitsRaw.map((u: any) => ({
       toast({ title: "Status Changed" });
     },
   });
-
+  
   /* ===============================
      UNIT HELPERS
   =============================== */
   const baseUnits = units.filter((u: any) => !u.baseUnitId && u.isActive);
+  const getBaseUnit = (unitId: string) => {
+  let unit = units.find((u: any) => u.id === unitId);
 
+  while (unit?.baseUnitId) {
+    unit = units.find((u: any) => u.id === unit.baseUnitId);
+  }
+
+  return unit;
+};
   const getUnitFamily = (purchaseUnitId: string) => {
   if (!purchaseUnitId) return [];
 
@@ -201,15 +210,18 @@ const units = unitsRaw.map((u: any) => ({
     });
     setOpen(true);
   };
+
   const selectedUnit = units.find((u: any) => u.id === form.purchaseUnitId);
+  const baseUnit = getBaseUnit(form.purchaseUnitId);
   const handleSubmit = () => {
     console.log("SALE UNITS", form.saleUnitIds);
     const payload = {
       name: form.name,
       sku: form.sku,
       category_id: form.categoryId,
-      unit: selectedUnit?.shortCode,
+      
       saleUnits: form.saleUnitIds,
+       unit: baseUnit?.shortCode, 
        purchaseUnit_id: form.purchaseUnitId,   // ⭐ THIS IS MISSING
 
       costPrice: Number(form.costPrice),
@@ -475,6 +487,23 @@ const units = unitsRaw.map((u: any) => ({
                   }
                 />
               </div>
+              <div className="space-y-2">
+  <Label>Selling Price (Per Base Unit)</Label>
+  <Input
+    type="number"
+    step="0.01"
+    min="0"
+    value={form.sellingPrice}
+    onChange={(e) =>
+      setForm({ ...form, sellingPrice: e.target.value })
+    }
+    placeholder="0.00 (optional)"
+  />
+  <p className="text-xs text-muted-foreground">
+    Leave empty to use cost price as selling price
+  </p>
+</div>
+
               <div className="space-y-2">
                 <Label>Reorder Level (Min Stock)</Label>
                 <Input
