@@ -47,8 +47,8 @@ export const toggleCategoryApi = async (id: string) => {
 /* =========================================================
    ITEMS
 ========================================================= */
-export const getItemsApi = async () => {
-  const res = await api.get("/inventory/items");
+export const getItemsApi = async (params?: { search?: string }) => {
+  const res = await api.get("/inventory/items", { params });
   return res.data.data.map(mapInventoryItem);
 };
 
