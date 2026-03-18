@@ -10,20 +10,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Plus, Edit2, Power, Info } from "lucide-react";
+import { Search, Plus, Edit2, Power, Info, Loader2 } from "lucide-react";
 import { useState } from "react";
 import {
-  getItemsApi,
+  getPaginatedItemsApi,
   createItemApi,
   updateItemApi,
   toggleItemApi,
   getCategoriesApi,
   getUnitsApi,
 } from "@/api/inventoryApi";
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
 import {
   Dialog,
   DialogContent,
@@ -31,7 +30,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,42 +40,97 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
+import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryItem } from "@/pages/inventory/types/inventory";
+import { useDebounce } from "@/hooks/useDebounce";
+
+// Define the response types
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+interface Category {
+  id: string;
+  _id?: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+interface Unit {
+  id: string;
+  _id?: string;
+  name: string;
+  shortCode: string;
+  conversionFactor: number;
+  decimalPrecision: number;
+  isActive: boolean;
+  baseUnitId?: string | null;
+  baseUnit_id?: {
+    id: string;
+    shortCode: string;
+  };
+}
 
 const InventoryItems = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
   /* ===============================
-     QUERIES (Using real API)
+     FILTER STATE
   =============================== */
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ["inventory-items"],
-    queryFn: getItemsApi,
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const debouncedSearch = useDebounce(search, 500);
+
+  /* ===============================
+     QUERIES (Using paginated API with filters)
+  =============================== */
+  const { data, isLoading, isFetching } = useQuery<PaginatedResponse<InventoryItem>>({
+    queryKey: ["inventory-items", page, debouncedSearch, categoryFilter],
+    queryFn: () => 
+      getPaginatedItemsApi({ 
+        page, 
+        limit,
+        search: debouncedSearch || undefined,
+        category: categoryFilter !== "all" ? categoryFilter : undefined,
+    
+      }),
+    // Replace keepPreviousData with this approach for older React Query versions
+    placeholderData: (previousData) => previousData,
   });
 
-  const { data: categories = [] } = useQuery({
+  const items = data?.data || [];
+  const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0, limit: 10 };
+
+  const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["categories"],
     queryFn: getCategoriesApi,
   });
 
-const { data: unitsRaw = [] } = useQuery({
-  queryKey: ["units"],
-  queryFn: getUnitsApi,
-});
+  const { data: unitsRaw = [] } = useQuery<any[]>({
+    queryKey: ["units"],
+    queryFn: getUnitsApi,
+  });
 
-const units = unitsRaw.map((u: any) => ({
-  ...u,
-  baseUnitId: u.baseUnit_id?.id || null
-}));
+  const units = unitsRaw.map((u: any) => ({
+    ...u,
+    id: u._id || u.id,
+    baseUnitId: u.baseUnit_id?.id || null,
+  }));
 
   /* ===============================
      STATE
   =============================== */
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [toggleItem, setToggleItem] = useState<InventoryItem | null>(null);
@@ -86,7 +139,6 @@ const units = unitsRaw.map((u: any) => ({
     name: "",
     sku: "",
     categoryId: "",
-    
     purchaseUnitId: "",
     saleUnitIds: [] as string[],
     costPrice: "",
@@ -133,57 +185,40 @@ const units = unitsRaw.map((u: any) => ({
       toast({ title: "Status Changed" });
     },
   });
-  
+
   /* ===============================
      UNIT HELPERS
   =============================== */
-  const baseUnits = units.filter((u: any) => !u.baseUnitId && u.isActive);
   const getBaseUnit = (unitId: string) => {
-  let unit = units.find((u: any) => u.id === unitId);
-
-  while (unit?.baseUnitId) {
-    unit = units.find((u: any) => u.id === unit.baseUnitId);
-  }
-
-  return unit;
-};
+    let unit = units.find((u: Unit) => u.id === unitId);
+    while (unit?.baseUnitId) {
+      unit = units.find((u: Unit) => u.id === unit.baseUnitId);
+    }
+    return unit;
+  };
+  
   const getUnitFamily = (purchaseUnitId: string) => {
-  if (!purchaseUnitId) return [];
-
-  const pu = units.find((u: any) => u.id === purchaseUnitId);
-  if (!pu) return [];
-
-  // find root base unit
-  let base = pu;
-
-  while (base.baseUnitId) {
-    const parent = units.find((u: any) => u.id === base.baseUnitId);
-    if (!parent) break;
-    base = parent;
-  }
-
-  const baseId = base.id;
-
-  // return all units belonging to that base
-  return units.filter(
-    (u: any) =>
-      u.isActive && (u.id === baseId || u.baseUnitId === baseId)
-  );
-};
+    if (!purchaseUnitId) return [];
+    const pu = units.find((u: Unit) => u.id === purchaseUnitId);
+    if (!pu) return [];
+    
+    // find root base unit
+    let base = pu;
+    while (base.baseUnitId) {
+      const parent = units.find((u: Unit) => u.id === base.baseUnitId);
+      if (!parent) break;
+      base = parent;
+    }
+    const baseId = base.id;
+    
+    // return all units belonging to that base
+    return units.filter(
+      (u: Unit) => u.isActive && (u.id === baseId || u.baseUnitId === baseId),
+    );
+  };
 
   const unitFamily = getUnitFamily(form.purchaseUnitId);
-
-  /* ===============================
-     FILTER LOGIC
-  =============================== */
-  const filtered = items.filter((item: InventoryItem) => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.sku.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory =
-      categoryFilter === "all" || item.categoryId === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const baseUnit = getBaseUnit(form.purchaseUnitId);
 
   /* ===============================
      HANDLERS
@@ -211,19 +246,14 @@ const units = unitsRaw.map((u: any) => ({
     setOpen(true);
   };
 
-  const selectedUnit = units.find((u: any) => u.id === form.purchaseUnitId);
-  const baseUnit = getBaseUnit(form.purchaseUnitId);
   const handleSubmit = () => {
-    console.log("SALE UNITS", form.saleUnitIds);
     const payload = {
       name: form.name,
       sku: form.sku,
       category_id: form.categoryId,
-      
       saleUnits: form.saleUnitIds,
-       unit: baseUnit?.shortCode, 
-       purchaseUnit_id: form.purchaseUnitId,   // ⭐ THIS IS MISSING
-
+      unit: baseUnit?.shortCode,
+      purchaseUnit_id: form.purchaseUnitId,
       costPrice: Number(form.costPrice),
       sellingPrice: form.sellingPrice ? Number(form.sellingPrice) : undefined,
       minimumStock: Number(form.minimumStock),
@@ -240,12 +270,21 @@ const units = unitsRaw.map((u: any) => ({
     }
   };
 
-  if (isLoading)
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, categoryFilter]);
+
+  if (isLoading && items.length === 0) {
     return (
-      <>
-        <div className="p-6">Loading inventory...</div>
-      </>
+      <div className="p-6 flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground mt-4">Loading inventory...</p>
+        </div>
+      </div>
     );
+  }
 
   return (
     <>
@@ -274,6 +313,11 @@ const units = unitsRaw.map((u: any) => ({
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
               />
+              {isFetching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-[200px]">
@@ -281,7 +325,7 @@ const units = unitsRaw.map((u: any) => ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c: any) => (
+                {categories.map((c: Category) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
@@ -306,60 +350,87 @@ const units = unitsRaw.map((u: any) => ({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item: InventoryItem) => (
-                  <tr
-                    key={item.id}
-                    className="border-b hover:bg-muted/20 transition-colors"
-                  >
-                    <td className="p-4 font-mono text-xs text-blue-600">
-                      {item.sku}
-                    </td>
-                    <td className="p-4">
-                      <div className="font-medium text-foreground">
-                        {item.name}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.categoryName}
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      ₹{item.costPrice.toLocaleString()}
-                    </td>
-                    <td className="p-4 text-right">
-                      <span
-                        className={`px-2 py-1 rounded ${item.currentStock <= item.minimumStock ? "bg-red-100 text-red-700 font-bold" : ""}`}
-                      >
-                        {item.currentStock}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <Badge variant={item.isActive ? "default" : "secondary"}>
-                        {item.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </td>
-                    <td className="p-4 text-center space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(item)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setToggleItem(item)}
-                        className={
-                          item.isActive ? "text-red-500" : "text-green-500"
-                        }
-                      >
-                        <Power className="h-4 w-4" />
-                      </Button>
+                {items.length > 0 ? (
+                  items.map((item: InventoryItem) => (
+                    <tr
+                      key={item.id}
+                      className="border-b hover:bg-muted/20 transition-colors"
+                    >
+                      <td className="p-4 font-mono text-xs text-blue-600">
+                        {item.sku}
+                      </td>
+                      <td className="p-4">
+                        <div className="font-medium text-foreground">
+                          {item.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.categoryName}
+                        </div>
+                      </td>
+                      <td className="p-4 text-right">
+                        ₹{item.costPrice.toLocaleString()}
+                      </td>
+                      <td className="p-4 text-right">
+                        <span
+                          className={`px-2 py-1 rounded ${
+                            item.currentStock <= item.minimumStock 
+                              ? "bg-red-100 text-red-700 font-bold" 
+                              : ""
+                          }`}
+                        >
+                          {item.currentStock}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant={item.isActive ? "default" : "secondary"}>
+                          {item.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-center space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(item)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setToggleItem(item)}
+                          className={
+                            item.isActive ? "text-red-500" : "text-green-500"
+                          }
+                        >
+                          <Power className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                      {isFetching ? "Searching..." : "No items found"}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
+            
+            {/* Pagination */}
+            {pagination.totalPages > 0 && (
+              <DataTablePagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                pageSize={pagination.limit}
+                onPageChange={(newPage: number) => setPage(newPage)}
+                onPageSizeChange={(newSize: number) => {
+                  // Optional: handle page size change
+                  console.log("Page size changed to:", newSize);
+                }}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -398,7 +469,7 @@ const units = unitsRaw.map((u: any) => ({
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((c: any) => (
+                    {categories.map((c: Category) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                       </SelectItem>
@@ -418,13 +489,13 @@ const units = unitsRaw.map((u: any) => ({
                     <SelectValue placeholder="Base unit" />
                   </SelectTrigger>
                   <SelectContent>
-                   {units
-  .filter((u: any) => u.isActive)
-  .map((u: any) => (
-    <SelectItem key={u.id} value={u.id}>
-      {u.name} ({u.shortCode})
-    </SelectItem>
-  ))}
+                    {units
+                      .filter((u: Unit) => u.isActive)
+                      .map((u: Unit) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name} ({u.shortCode})
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -437,7 +508,7 @@ const units = unitsRaw.map((u: any) => ({
                 </div>
                 {form.purchaseUnitId ? (
                   <div className="flex flex-wrap gap-4">
-                    {unitFamily.map((u: any) => (
+                    {unitFamily.map((u: Unit) => (
                       <div
                         key={u.id}
                         className="flex items-center space-x-2 bg-background p-2 rounded border shadow-sm"
@@ -446,21 +517,18 @@ const units = unitsRaw.map((u: any) => ({
                           id={`unit-${u.id}`}
                           checked={form.saleUnitIds.includes(u.id)}
                           onCheckedChange={(checked) => {
-  const isChecked = checked === true;
-
-  const ids = isChecked
-    ? [...form.saleUnitIds, u.id]
-    : form.saleUnitIds.filter((id) => id !== u.id);
-
-  setForm({ ...form, saleUnitIds: ids });
-}}
+                            const isChecked = checked === true;
+                            const ids = isChecked
+                              ? [...form.saleUnitIds, u.id]
+                              : form.saleUnitIds.filter((id) => id !== u.id);
+                            setForm({ ...form, saleUnitIds: ids });
+                          }}
                         />
                         <Label htmlFor={`unit-${u.id}`}>
                           {u.shortCode}
                           <span className="text-xs text-muted-foreground ml-1">
                             ({u.name})
                           </span>
-
                           {u.baseUnitId && (
                             <span className="text-xs text-blue-500 ml-2">
                               ×{u.conversionFactor}
@@ -488,21 +556,21 @@ const units = unitsRaw.map((u: any) => ({
                 />
               </div>
               <div className="space-y-2">
-  <Label>Selling Price (Per Base Unit)</Label>
-  <Input
-    type="number"
-    step="0.01"
-    min="0"
-    value={form.sellingPrice}
-    onChange={(e) =>
-      setForm({ ...form, sellingPrice: e.target.value })
-    }
-    placeholder="0.00 (optional)"
-  />
-  <p className="text-xs text-muted-foreground">
-    Leave empty to use cost price as selling price
-  </p>
-</div>
+                <Label>Selling Price (Per Base Unit)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.sellingPrice}
+                  onChange={(e) =>
+                    setForm({ ...form, sellingPrice: e.target.value })
+                  }
+                  placeholder="0.00 (optional)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to use cost price as selling price
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <Label>Reorder Level (Min Stock)</Label>
@@ -524,7 +592,6 @@ const units = unitsRaw.map((u: any) => ({
                       Enable expiry tracking for this item
                     </p>
                   </div>
-
                   <Checkbox
                     checked={form.isPerishable}
                     onCheckedChange={(checked: boolean) =>
@@ -536,7 +603,6 @@ const units = unitsRaw.map((u: any) => ({
                     }
                   />
                 </div>
-
                 {form.isPerishable && (
                   <div className="space-y-2">
                     <Label>Shelf Life (Days)</Label>

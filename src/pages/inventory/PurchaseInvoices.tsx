@@ -32,6 +32,7 @@ import {
   Lock,
   Leaf,
   Printer,
+  Loader2,
 } from "lucide-react";
 import {
   printDocument,
@@ -46,11 +47,9 @@ import {
   cancelInvoiceApi,
   recordPaymentApi,
   getVendorsApi,
-  getItemsApi,
+  getPaginatedItemsApi,
   getUnitsApi,
 } from "@/api/inventoryApi";
-
-import { unitsMockData } from "./unitsMockData";
 import {
   Dialog,
   DialogContent,
@@ -59,11 +58,43 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/useDebounce";
 import type {
   PurchaseInvoice,
   PurchaseInvoiceItem,
   InvoiceState,
 } from "@/pages/inventory/types/inventory";
+
+// Add interface for Item
+interface InventoryItem {
+  id: string;
+  _id?: string;
+  name: string;
+  sku: string;
+  description?: string;
+  unit: string;
+  currentStock: number;
+  sellingPrice?: number;
+  costPrice: number;
+  purchaseUnitId?: string;
+  isPerishable?: boolean;
+  isActive: boolean;
+}
+
+interface Unit {
+  id: string;
+  _id?: string;
+  name: string;
+  shortCode: string;
+  conversionFactor: number;
+  decimalPrecision: number;
+  isActive: boolean;
+  baseUnitId?: string | null;
+  baseUnit_id?: {
+    id: string;
+    shortCode: string;
+  };
+}
 
 const statusStyles: Record<string, string> = {
   PAID: "bg-success/10 text-success border-success/20",
@@ -81,9 +112,9 @@ const stateStyles: Record<InvoiceState, string> = {
 const PurchaseInvoices = () => {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
-  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
-  const [selectedInvoice, setSelectedInvoice] =
-    useState<PurchaseInvoice | null>(null);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [searchResults, setSearchResults] = useState<Record<string, InventoryItem[]>>({});
+  const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     invoiceId: string;
@@ -95,15 +126,18 @@ const PurchaseInvoices = () => {
   const [vendorId, setVendorId] = useState("");
   const [notes, setNotes] = useState("");
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [units, setUnits] = useState<any[]>([]);
-  const [paymentInvoice, setPaymentInvoice] = useState<PurchaseInvoice | null>(
-    null,
-  );
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [paymentInvoice, setPaymentInvoice] = useState<PurchaseInvoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<
-    "CASH" | "BANK_TRANSFER" | "CHEQUE" | "UPI"
-  >("BANK_TRANSFER");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "CHEQUE" | "UPI">("BANK_TRANSFER");
   const [paymentRef, setPaymentRef] = useState("");
+
+  // Item search state
+  const [itemSearch, setItemSearch] = useState<Record<string, string>>({});
+  const [activeSearch, setActiveSearch] = useState("");
+  const [isSearching, setIsSearching] = useState<Record<string, boolean>>({});
+  const debouncedSearch = useDebounce(activeSearch, 500);
+
   const [lineItems, setLineItems] = useState<
     Array<{
       itemId: string;
@@ -125,22 +159,21 @@ const PurchaseInvoices = () => {
       purchaseUnitId: "",
     },
   ]);
+
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      const [invoiceRes, vendorRes, itemRes, unitRes] = await Promise.all([
+      const [invoiceRes, vendorRes, unitRes] = await Promise.all([
         getInvoicesApi(),
         getVendorsApi(),
-        getItemsApi(),
         getUnitsApi(),
       ]);
 
       setInvoices(invoiceRes);
       setVendors(vendorRes);
-      setInventoryItems(itemRes);
       setUnits(
         unitRes.map((u: any) => ({
           ...u,
@@ -155,6 +188,55 @@ const PurchaseInvoices = () => {
     }
   };
 
+  // Search items when typing in the create dialog
+  useEffect(() => {
+    if (!createOpen || !debouncedSearch || debouncedSearch.length < 2) return;
+
+    const fetchItems = async () => {
+      const activeLineId = Object.keys(itemSearch).find(
+        (key) => itemSearch[key],
+      );
+
+      if (!activeLineId) return;
+
+      setIsSearching((prev) => ({ ...prev, [activeLineId]: true }));
+
+      try {
+        const response = await getPaginatedItemsApi({
+          search: debouncedSearch,
+          page: 1,
+          limit: 10,
+          active: true,
+        });
+
+        setSearchResults((prev) => ({
+          ...prev,
+          [activeLineId]: response.data,
+        }));
+
+        // Also update inventory items with search results
+        setInventoryItems((prev) => {
+          const newItems = [...prev];
+          response.data.forEach((item: InventoryItem) => {
+            if (!newItems.find((i) => i.id === item.id)) {
+              newItems.push(item);
+            }
+          });
+          return newItems;
+        });
+      } catch (err) {
+        toast({
+          title: "Failed to search items",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSearching((prev) => ({ ...prev, [activeLineId]: false }));
+      }
+    };
+
+    fetchItems();
+  }, [debouncedSearch, createOpen, itemSearch, toast]);
+
   const addLineItem = () =>
     setLineItems((prev) => [
       ...prev,
@@ -168,12 +250,27 @@ const PurchaseInvoices = () => {
         purchaseUnitId: "",
       },
     ]);
+
   const removeLineItem = (idx: number) =>
     setLineItems((prev) => prev.filter((_, i) => i !== idx));
+
   const updateLineItem = (idx: number, field: string, value: string) =>
     setLineItems((prev) =>
       prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)),
     );
+
+  const handleSelectItem = (idx: number, itemId: string) => {
+    const item = inventoryItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    updateLineItem(idx, "itemId", itemId);
+    updateLineItem(idx, "unitPrice", item.costPrice.toString());
+    updateLineItem(idx, "purchaseUnitId", item.purchaseUnitId || "");
+
+    // Clear search for this line
+    const lineId = `line-${idx}`;
+    setItemSearch((prev) => ({ ...prev, [lineId]: "" }));
+  };
 
   const calcSubtotal = () =>
     lineItems.reduce(
@@ -181,12 +278,14 @@ const PurchaseInvoices = () => {
         sum + parseFloat(li.quantity || "0") * parseFloat(li.unitPrice || "0"),
       0,
     );
+
   const calcGst = () =>
     lineItems.reduce((sum, li) => {
       const base =
         parseFloat(li.quantity || "0") * parseFloat(li.unitPrice || "0");
       return sum + (base * parseFloat(li.gstPercentage || "0")) / 100;
     }, 0);
+
   const handleCreate = async () => {
     if (
       !vendorId ||
@@ -845,54 +944,71 @@ const PurchaseInvoices = () => {
                   const selectedItem = inventoryItems.find(
                     (i) => i.id === li.itemId,
                   );
-                 const pu = units.find(
-  (u) => u.id === selectedItem?.purchaseUnitId,
-);
-                  console.log("selectedItem", selectedItem);
-                  console.log("units", units);
-               console.log("purchaseUnitId", selectedItem?.purchaseUnitId);
-                  console.log(
-                    "unit ids",
-                    units.map((u) => u._id),
+                  const pu = units.find(
+                    (u) => u.id === selectedItem?.purchaseUnitId,
                   );
+                  const lineId = `line-${idx}`;
+
                   return (
                     <div key={idx} className="border rounded-lg p-3 space-y-2">
                       <div className="grid grid-cols-[1fr_60px_80px_100px_80px_32px] gap-2 items-end">
-                        <div>
+                        <div className="relative">
                           {idx === 0 && (
                             <Label className="text-xs text-muted-foreground">
                               Item
                             </Label>
                           )}
-                          <Select
-                            value={li.itemId}
-                            onValueChange={(v) => {
-                              const item = inventoryItems.find(
-                                (i) => i.id === v,
-                              );
-                              updateLineItem(idx, "itemId", v);
-                              if (item)
-                                updateLineItem(
-                                  idx,
-                                  "unitPrice",
-                                  item.costPrice.toString(),
-                                );
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select item" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {inventoryItems
-                                .filter((i) => i.isActive)
-                                .map((i) => (
-                                  <SelectItem key={i.id} value={i.id}>
-                                    {i.name} ({i.sku})
-                                    {i.isPerishable ? " 🌿" : ""}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="relative">
+                            <Input
+                              placeholder="Search item (min 2 chars)..."
+                              value={
+                                li.itemId
+                                  ? selectedItem?.name || ""
+                                  : itemSearch[lineId] || ""
+                              }
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setItemSearch((prev) => ({
+                                  ...prev,
+                                  [lineId]: value,
+                                }));
+                                setActiveSearch(value);
+                                
+                                // Clear item if searching
+                                if (li.itemId) {
+                                  updateLineItem(idx, "itemId", "");
+                                  updateLineItem(idx, "purchaseUnitId", "");
+                                }
+                              }}
+                              className={li.itemId ? "bg-muted" : ""}
+                              disabled={!!li.itemId}
+                            />
+                            {itemSearch[lineId] && itemSearch[lineId].length >= 2 && (
+                              <div className="absolute z-50 bg-white border w-full mt-1 rounded shadow max-h-60 overflow-y-auto">
+                                {isSearching[lineId] ? (
+                                  <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                                    Searching...
+                                  </div>
+                                ) : searchResults[lineId] && searchResults[lineId].length > 0 ? (
+                                  searchResults[lineId].map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="px-3 py-2 cursor-pointer text-sm hover:bg-muted"
+                                      onClick={() => handleSelectItem(idx, item.id)}
+                                    >
+                                      {item.name} ({item.sku}) — ₹{item.costPrice}
+                                      {item.isPerishable && " 🌿"}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                                    No items found
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           {idx === 0 && (

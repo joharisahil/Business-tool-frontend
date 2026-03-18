@@ -18,6 +18,7 @@ import ExpiryMonitoring from "./pages/inventory/ExpiryMonitoring";
 import GeneralLedger from "./pages/inventory/GeneralLedger";
 import AuditTrail from "./pages/inventory/AuditTrail";
 import CreateCategory from "./pages/inventory/CreateCategory";
+import Dashboard from "./pages/inventory/Dashboard";
 
 // Sales Pages
 import Customers from "./pages/inventory/Customers";
@@ -70,6 +71,8 @@ const App = () => (
               <Route path="/sales/payments" element={<SalesPayments />} />
               <Route path="/sales/reports" element={<SalesReports />} />
               <Route path="/sales/gst" element={<GSTReports />} />
+              <Route path="/sales/dashboard" element={<Dashboard />} />
+              
 
               {/* INVENTORY */}
               <Route path="/inventory" element={<InventoryItems />} />

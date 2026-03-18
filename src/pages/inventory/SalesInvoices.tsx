@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -81,6 +82,27 @@ interface InventoryItem {
   saleUnits?: string[];
 }
 
+interface Unit {
+  id: string;
+  _id?: string;
+  name: string;
+  shortCode: string;
+  conversionFactor: number;
+  decimalPrecision: number;
+  baseUnit_id?: {
+    id: string;
+    shortCode: string;
+  };
+}
+
+interface Customer {
+  id: string;
+  _id?: string;
+  name: string;
+  gstin?: string;
+  isActive: boolean;
+}
+
 const stateStyles: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground",
   APPROVED: "bg-info/10 text-info border-info/20",
@@ -123,14 +145,20 @@ const emptyLine = (): LineItemForm => ({
 
 const SalesInvoices = () => {
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [searchResults, setSearchResults] = useState<Record<string, InventoryItem[]>>({});
-  const [units, setUnits] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<
+    Record<string, InventoryItem[]>
+  >({});
+  const [units, setUnits] = useState<Unit[]>([]);
 
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("ALL");
   const [createOpen, setCreateOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoice | null>(
     null,
   );
@@ -150,7 +178,7 @@ const SalesInvoices = () => {
 
   const [itemSearch, setItemSearch] = useState<Record<string, string>>({});
   const [activeSearch, setActiveSearch] = useState("");
-  
+
   // Create form state
   const [customerId, setCustomerId] = useState("");
   const [notes, setNotes] = useState("");
@@ -158,21 +186,13 @@ const SalesInvoices = () => {
   const [lineItems, setLineItems] = useState<LineItemForm[]>([emptyLine()]);
   const [barcodeInput, setBarcodeInput] = useState("");
 
-  const filtered = invoices.filter((i) => {
-    const matchSearch =
-      i.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-      i.customerName.toLowerCase().includes(search.toLowerCase());
-    const matchState = stateFilter === "ALL" || i.invoiceState === stateFilter;
-    return matchSearch && matchState;
-  });
-
   const addLineItem = () => {
     setLineItems((prev) => [...prev, emptyLine()]);
   };
-  
+
   const removeLineItem = (idx: number) =>
     setLineItems((prev) => prev.filter((_, i) => i !== idx));
-  
+
   const updateLine = (idx: number, field: string, value: any) =>
     setLineItems((prev) =>
       prev.map((li, i) => (i === idx ? { ...li, [field]: value } : li)),
@@ -180,40 +200,39 @@ const SalesInvoices = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page, limit, stateFilter]);
 
   const debouncedSearch = useDebounce(activeSearch, 400);
 
   const loadData = async () => {
     try {
-      const [invoicesRes, customersRes, unitsRes, itemsRes] = await Promise.all([
-        getSalesInvoicesApi(),
+      const [invoicesRes, customersRes, unitsRes] = await Promise.all([
+        getSalesInvoicesApi({
+          page,
+          limit,
+          state: stateFilter === "ALL" ? undefined : stateFilter,
+        }),
         getCustomersApi(),
         getUnitsApi(),
-        getItemsApi({}),
       ]);
 
       setInvoices(
-        invoicesRes.map((inv: any) => ({
+        invoicesRes.data.map((inv: any) => ({
           ...inv,
           id: inv._id || inv.id,
         })),
       );
 
+      setTotalPages(invoicesRes.pages);
+      setTotalItems(invoicesRes.total);
+
       setCustomers(customersRes);
-      
+
       setUnits(
         unitsRes.map((u: any) => ({
           ...u,
           id: u._id,
         })),
-      );
-
-      setInventoryItems(
-        itemsRes.map((i: any) => ({
-          ...i,
-          id: i._id || i.id,
-        }))
       );
     } catch (err) {
       toast({
@@ -223,29 +242,52 @@ const SalesInvoices = () => {
     }
   };
 
+  // Load items when create dialog opens
+ 
+
+  // Search items when typing in the create dialog
+  // Remove the initial load useEffect completely
+  // Don't load any items when dialog opens
+
+  // Only load items when searching
   useEffect(() => {
-    if (!createOpen || !debouncedSearch) return;
+    if (!createOpen || !debouncedSearch || debouncedSearch.length < 2) return;
 
     const fetchItems = async () => {
       try {
         const items = await getItemsApi({
           search: debouncedSearch,
+          page: 1,
+          limit: 10, // Limit search results
         });
 
         const activeLineId = Object.keys(itemSearch).find(
-          (key) => itemSearch[key]
+          (key) => itemSearch[key],
         );
 
         if (!activeLineId) return;
 
+        const mappedItems = items.map((i: any) => ({
+          ...i,
+          id: i._id || i.id,
+          saleUnits: i.saleUnits?.map((id: any) => id.toString()) || [],
+        }));
+
         setSearchResults((prev) => ({
           ...prev,
-          [activeLineId]: items.map((i: any) => ({
-            ...i,
-            id: i._id || i.id,
-            saleUnits: i.saleUnits?.map((id: any) => id.toString()) || [],
-          })),
+          [activeLineId]: mappedItems,
         }));
+
+        // Also update inventory items with search results
+        setInventoryItems((prev) => {
+          const newItems = [...prev];
+          mappedItems.forEach((item: InventoryItem) => {
+            if (!newItems.find((i) => i.id === item.id)) {
+              newItems.push(item);
+            }
+          });
+          return newItems;
+        });
       } catch {
         toast({
           title: "Failed to load items",
@@ -255,29 +297,76 @@ const SalesInvoices = () => {
     };
 
     fetchItems();
-  }, [debouncedSearch, createOpen, itemSearch]);
+  }, [debouncedSearch, createOpen, itemSearch, toast]);
 
   // Barcode/SKU scan handler
   const handleBarcodeScan = (code: string) => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
-    
-    const item = inventoryItems.find(
-      (i) =>
-        i.sku.toUpperCase() === trimmed ||
-        i.name.toUpperCase().includes(trimmed),
-    );
-    
+
+    // Get items from search results or load them
+    const loadItemsForScan = async () => {
+      try {
+        // Only fetch if inventoryItems is empty
+        if (inventoryItems.length === 0) {
+          const items = await getItemsApi({});
+          setInventoryItems(
+            items.map((i: any) => ({
+              ...i,
+              id: i._id || i.id,
+              saleUnits: i.saleUnits?.map((id: any) => id.toString()) || [],
+            })),
+          );
+          return items.map((i: any) => ({
+            ...i,
+            id: i._id || i.id,
+            saleUnits: i.saleUnits?.map((id: any) => id.toString()) || [],
+          }));
+        }
+        return inventoryItems;
+      } catch (err) {
+        toast({
+          title: "Failed to load items for scan",
+          variant: "destructive",
+        });
+        return [];
+      }
+    };
+
+    // Use current inventoryItems or load them
+    if (inventoryItems.length === 0) {
+      loadItemsForScan().then((items) => {
+        const item = items.find(
+          (i: InventoryItem) =>
+            i.sku.toUpperCase() === trimmed ||
+            i.name.toUpperCase().includes(trimmed),
+        );
+        processScannedItem(item, trimmed);
+      });
+    } else {
+      const item = inventoryItems.find(
+        (i) =>
+          i.sku.toUpperCase() === trimmed ||
+          i.name.toUpperCase().includes(trimmed),
+      );
+      processScannedItem(item, trimmed);
+    }
+  };
+
+  const processScannedItem = (
+    item: InventoryItem | undefined,
+    scannedCode: string,
+  ) => {
     if (!item) {
       toast({
         title: "Item not found",
-        description: `No item matches "${code}"`,
+        description: `No item matches "${scannedCode}"`,
         variant: "destructive",
       });
       setBarcodeInput("");
       return;
     }
-    
+
     // Check if already in line items — increment qty
     const existingIdx = lineItems.findIndex((li) => li.itemId === item.id);
 
@@ -327,7 +416,7 @@ const SalesInvoices = () => {
   };
 
   // Helper function to get sale units for an item
-  const getSaleUnitsForItem = (itemId: string) => {
+  const getSaleUnitsForItem = (itemId: string): Unit[] => {
     const item = inventoryItems.find((i) => i.id === itemId);
     if (!item) return [];
 
@@ -343,23 +432,12 @@ const SalesInvoices = () => {
   };
 
   // Get available sale units for an item (for a specific line)
-  const getSaleUnits = (idx: number, itemId: string) => {
-    const item = inventoryItems.find((i) => i.id === itemId);
-    if (!item) return [];
-
-    if (!item.saleUnits || item.saleUnits.length === 0) {
-      const baseUnit = units.find(
-        (u) => u.shortCode?.toUpperCase() === item.unit?.toUpperCase(),
-      );
-      return baseUnit ? [baseUnit] : [];
-    }
-
-    const saleUnitIds = item.saleUnits.map((id: any) => id.toString());
-    return units.filter((u) => saleUnitIds.includes(u.id?.toString()));
+  const getSaleUnits = (_idx: number, itemId: string): Unit[] => {
+    return getSaleUnitsForItem(itemId);
   };
 
   // Convert sale quantity to base quantity
-  const getBaseQty = (qty: number, saleUnitId: string) => {
+  const getBaseQty = (qty: number, saleUnitId: string): number => {
     const unit = units.find((u) => u.id === saleUnitId);
     if (!unit) return qty;
     return qty * unit.conversionFactor;
@@ -413,13 +491,45 @@ const SalesInvoices = () => {
   };
 
   const handleSelectItem = (idx: number, itemId: string) => {
+    // Make sure we have the item in inventoryItems
     const item = inventoryItems.find((i) => i.id === itemId);
-    if (!item) return;
+    if (!item) {
+      // If not found, try to load it
+      const loadItem = async () => {
+        try {
+          const items = await getItemsApi({ search: itemId });
+          const foundItem = items.find(
+            (i: any) => i.id === itemId || i._id === itemId,
+          );
+          if (foundItem) {
+            const mappedItem: InventoryItem = {
+              ...foundItem,
+              id: foundItem._id || foundItem.id,
+              saleUnits:
+                foundItem.saleUnits?.map((id: any) => id.toString()) || [],
+            };
+            setInventoryItems((prev) => [...prev, mappedItem]);
+            selectItem(idx, mappedItem);
+          }
+        } catch (err) {
+          toast({
+            title: "Failed to load item",
+            variant: "destructive",
+          });
+        }
+      };
+      loadItem();
+      return;
+    }
 
-    const saleUnits = getSaleUnits(idx, itemId);
+    selectItem(idx, item);
+  };
+
+  const selectItem = (idx: number, item: InventoryItem) => {
+    const saleUnits = getSaleUnits(idx, item.id);
     const defaultUnit = saleUnits.length > 0 ? saleUnits[0].id : "";
 
-    updateLine(idx, "itemId", itemId);
+    updateLine(idx, "itemId", item.id);
     updateLine(idx, "description", item.name);
     updateLine(
       idx,
@@ -428,7 +538,7 @@ const SalesInvoices = () => {
     );
     updateLine(idx, "saleUnitId", defaultUnit);
     updateLine(idx, "deductStock", true);
-    
+
     const lineId = lineItems[idx].id;
     setItemSearch((prev) => ({
       ...prev,
@@ -470,7 +580,7 @@ const SalesInvoices = () => {
         id: crypto.randomUUID(),
         description: li.description || "Item",
         category: li.category || "GOODS",
-        quantity:  qty,
+        quantity: qty,
         unitPrice: parseFloat(li.unitPrice),
         discount: parseFloat(li.discount || "0"),
         taxableAmount: taxableAmount,
@@ -486,7 +596,7 @@ const SalesInvoices = () => {
         baseQty: li.saleUnitId ? getBaseQty(qty, li.saleUnitId) : undefined,
       };
     });
-    
+
     const customer = customers.find((c) => c.id === customerId);
     const newInvoice = {
       customer_id: customerId,
@@ -507,7 +617,7 @@ const SalesInvoices = () => {
         { ...createdInvoice, id: createdInvoice._id || createdInvoice.id },
         ...prev,
       ]);
-      
+
       toast({
         title: "Invoice Created",
         description: `${invoiceNumber} saved as Draft.`,
@@ -518,7 +628,7 @@ const SalesInvoices = () => {
         variant: "destructive",
       });
     }
-    
+
     setCustomerId("");
     setNotes("");
     setPaymentTerms("IMMEDIATE");
@@ -610,7 +720,7 @@ const SalesInvoices = () => {
             </p>
           </div>
           <Button
-            className="gold-gradient text-accent-foreground font-medium gap-2"
+            className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-medium gap-2"
             onClick={() => setCreateOpen(true)}
           >
             <FilePlus className="h-4 w-4" /> New Invoice
@@ -680,7 +790,7 @@ const SalesInvoices = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filtered.map((inv) => (
+                  {invoices.map((inv) => (
                     <tr
                       key={inv.id}
                       className="hover:bg-muted/30 transition-colors"
@@ -823,7 +933,7 @@ const SalesInvoices = () => {
                       </td>
                     </tr>
                   ))}
-                  {filtered.length === 0 && (
+                  {invoices.length === 0 && (
                     <tr>
                       <td
                         colSpan={10}
@@ -838,6 +948,17 @@ const SalesInvoices = () => {
             </div>
           </CardContent>
         </Card>
+        <DataTablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={limit}
+          totalItems={totalItems}
+          onPageChange={(newPage: number) => setPage(newPage)}
+          onPageSizeChange={(newSize: number) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* ─── State Transition Confirm ─── */}
@@ -870,7 +991,7 @@ const SalesInvoices = () => {
               className={
                 confirmAction?.newState === "CANCELLED"
                   ? "bg-destructive text-destructive-foreground"
-                  : "gold-gradient text-accent-foreground"
+                  : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
               }
             >
               {confirmAction?.label}
@@ -1156,7 +1277,7 @@ const SalesInvoices = () => {
               </div>
               <div className="space-y-3">
                 {lineItems.map((li, idx) => {
-                  const item = inventoryItems.find(i => i.id === li.itemId);
+                  const item = inventoryItems.find((i) => i.id === li.itemId);
                   const saleUnits = getSaleUnits(idx, li.itemId);
                   const { total } = calcLineTotals(li);
                   const selectedUnit = units.find(
@@ -1181,7 +1302,7 @@ const SalesInvoices = () => {
 
                           <div className="flex gap-2">
                             {/* ITEM SEARCH INPUT */}
-                            <div className="space-y-1 flex-1">
+                            <div className="space-y-1 flex-1 relative">
                               <Input
                                 placeholder="Search item or SKU..."
                                 value={
@@ -1199,29 +1320,29 @@ const SalesInvoices = () => {
                                 }}
                               />
                               {li.itemId && item && (
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-muted-foreground mt-1">
                                   Selected: <strong>{item.name}</strong> (
                                   {item.sku})
                                 </div>
                               )}
 
-                              {itemSearch[li.id] && 
-                               (searchResults[li.id] || []).length > 0 && (
-                                <div className="absolute z-50 bg-white border w-full mt-1 rounded shadow max-h-60 overflow-y-auto">
-                                  {(searchResults[li.id] || []).map((i) => (
-                                    <div
-                                      key={i.id}
-                                      className="px-3 py-2 cursor-pointer text-sm hover:bg-muted"
-                                      onClick={() => {
-                                        handleSelectItem(idx, i.id);
-                                      }}
-                                    >
-                                      {i.name} ({i.sku}) — Stock{" "}
-                                      {i.currentStock} {i.unit}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              {itemSearch[li.id] &&
+                                (searchResults[li.id] || []).length > 0 && (
+                                  <div className="absolute z-50 bg-white border w-full mt-1 rounded shadow max-h-60 overflow-y-auto">
+                                    {(searchResults[li.id] || []).map((i) => (
+                                      <div
+                                        key={i.id}
+                                        className="px-3 py-2 cursor-pointer text-sm hover:bg-muted"
+                                        onClick={() => {
+                                          handleSelectItem(idx, i.id);
+                                        }}
+                                      >
+                                        {i.name} ({i.sku}) — Stock{" "}
+                                        {i.currentStock} {i.unit}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                             </div>
 
                             {/* CATEGORY SELECT */}
@@ -1298,7 +1419,7 @@ const SalesInvoices = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       {/* Row 2: Qty, Unit, Price, Discount */}
                       <div className="grid grid-cols-5 gap-2 items-end">
                         <div className="space-y-1">
@@ -1331,7 +1452,7 @@ const SalesInvoices = () => {
                                 <SelectValue placeholder="Unit" />
                               </SelectTrigger>
                               <SelectContent>
-                                {saleUnits.map((u: any) => (
+                                {saleUnits.map((u: Unit) => (
                                   <SelectItem key={u.id} value={u.id}>
                                     {u.shortCode} ({u.name})
                                   </SelectItem>
@@ -1485,7 +1606,7 @@ const SalesInvoices = () => {
             </Button>
             <Button
               onClick={handleCreate}
-              className="gold-gradient text-accent-foreground"
+              className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
             >
               Create Invoice (Draft)
             </Button>
@@ -1571,7 +1692,7 @@ const SalesInvoices = () => {
             </Button>
             <Button
               onClick={handleRecordPayment}
-              className="gold-gradient text-accent-foreground"
+              className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
             >
               Record Payment
             </Button>

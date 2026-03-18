@@ -52,6 +52,29 @@ export const getItemsApi = async (params?: { search?: string }) => {
   return res.data.data.map(mapInventoryItem);
 };
 
+export const getPaginatedItemsApi = async (params?: { 
+  page?: number; 
+  limit?: number; 
+  search?: string;
+  category?: string;
+  active?: boolean;
+}) => {
+  const res = await api.get("/inventory/items/paginated", { 
+    params: {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      search: params?.search,
+      category: params?.category,
+      active: params?.active
+    } 
+  });
+  
+  return {
+    data: res.data.data.map(mapInventoryItem),
+    pagination: res.data.pagination
+  };
+};
+
 export const getItemApi = async (id: string) => {
   const res = await api.get(`/inventory/items/${id}`);
   return mapInventoryItem(res.data.data);
@@ -282,9 +305,15 @@ export const getAuditLogsApi = async () => {
 /* =========================================================
    SALES INVOICES
 ========================================================= */
-export const getSalesInvoicesApi = async () => {
-  const res = await api.get("/inventory/sales-invoices");
-  return res.data.data.map(mapSalesInvoice);
+export const getSalesInvoicesApi = async (params?: any) => {
+  const res = await api.get("/inventory/sales-invoices", { params });
+
+  return {
+    data: res.data.data.map(mapSalesInvoice),
+    total: res.data.total,
+    pages: res.data.pages,
+    page: res.data.page,
+  };
 };
 
 export const getSalesInvoiceApi = async (id: string) => {

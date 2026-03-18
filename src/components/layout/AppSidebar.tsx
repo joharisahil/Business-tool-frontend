@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Label } from '@radix-ui/react-dropdown-menu';
+//import { Label } from '@radix-ui/react-dropdown-menu';
 
 const navGroups = [
   {
@@ -22,6 +22,7 @@ const navGroups = [
       { to: "/sales", icon: Receipt, label: "Sales Invoices" },
       { to: "/sales/payments", icon: CreditCard, label: "Sales Payments" },
       { to: "/sales/reports", icon: BarChart3, label: "Sales Reports" },
+      { to: "/sales/dashboard", icon: BarChart3, label: "Sales Summary" },
       { to: "/sales/gst", icon: IndianRupee, label: "GST Reports" },
     ],
   },
@@ -96,7 +97,7 @@ export function AppSidebar() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === "/"}
+                 end={item.to === "/sales" || item.to === "/"} 
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
                 activeClassName="bg-zinc-800 text-white font-medium"
               >
