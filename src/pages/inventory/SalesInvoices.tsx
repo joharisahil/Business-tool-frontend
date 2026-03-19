@@ -41,7 +41,7 @@ import {
   getUnitsApi,
 } from "@/api/inventoryApi";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   FilePlus,
   Search,
@@ -55,6 +55,7 @@ import {
   Lock,
   ArrowRightLeft,
   ScanBarcode,
+  MessageCircle,
   Printer,
 } from "lucide-react";
 import { printDocument, generateSalesInvoiceReceipt } from "@/utils/printUtils";
@@ -99,6 +100,8 @@ interface Customer {
   id: string;
   _id?: string;
   name: string;
+  phone?: string;
+  email?: string;
   gstin?: string;
   isActive: boolean;
 }
@@ -179,6 +182,14 @@ const SalesInvoices = () => {
   const [itemSearch, setItemSearch] = useState<Record<string, string>>({});
   const [activeSearch, setActiveSearch] = useState("");
 
+  // Customer search states
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSearchResults, setCustomerSearchResults] = useState<
+    Customer[]
+  >([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+
   // Create form state
   const [customerId, setCustomerId] = useState("");
   const [notes, setNotes] = useState("");
@@ -186,6 +197,56 @@ const SalesInvoices = () => {
   const [lineItems, setLineItems] = useState<LineItemForm[]>([emptyLine()]);
   const [barcodeInput, setBarcodeInput] = useState("");
 
+  // Debounced search for customers
+  const debouncedCustomerSearch = useDebounce(customerSearch, 300);
+
+const dropdownRef = useRef<HTMLDivElement | null>(null);
+  // Customer search effect
+  useEffect(() => {
+    if (!createOpen || debouncedCustomerSearch.length < 2) {
+      setCustomerSearchResults([]);
+      return;
+    }
+
+    const searchCustomers = async () => {
+      setIsLoadingCustomers(true);
+      try {
+        const results = await getCustomersApi({
+          search: debouncedCustomerSearch,
+          page: 1,
+          limit: 10,
+          isActive: true,
+        });
+        setCustomerSearchResults(results);
+      } catch (error) {
+        console.error("Failed to search customers:", error);
+        toast({
+          title: "Search Failed",
+          description: "Could not load customers",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingCustomers(false);
+      }
+    };
+
+    searchCustomers();
+  }, [debouncedCustomerSearch, createOpen, toast]);
+
+  // Click outside handler for customer dropdown
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      dropdownRef.current &&
+      !dropdownRef.current.contains(event.target as Node)
+    ) {
+      setShowCustomerDropdown(false);
+    }
+  };
+
+  document.addEventListener("click", handleClickOutside);
+  return () => document.removeEventListener("click", handleClickOutside);
+}, []);
   const addLineItem = () => {
     setLineItems((prev) => [...prev, emptyLine()]);
   };
@@ -206,13 +267,13 @@ const SalesInvoices = () => {
 
   const loadData = async () => {
     try {
-      const [invoicesRes, customersRes, unitsRes] = await Promise.all([
+      const [invoicesRes, unitsRes] = await Promise.all([
         getSalesInvoicesApi({
           page,
           limit,
           state: stateFilter === "ALL" ? undefined : stateFilter,
         }),
-        getCustomersApi(),
+
         getUnitsApi(),
       ]);
 
@@ -220,13 +281,13 @@ const SalesInvoices = () => {
         invoicesRes.data.map((inv: any) => ({
           ...inv,
           id: inv._id || inv.id,
+           customerPhone: inv.customer_id?.phone,
+    customerName: inv.customer_id?.name || inv.customerName,
         })),
       );
 
       setTotalPages(invoicesRes.pages);
       setTotalItems(invoicesRes.total);
-
-      setCustomers(customersRes);
 
       setUnits(
         unitsRes.map((u: any) => ({
@@ -241,15 +302,77 @@ const SalesInvoices = () => {
       });
     }
   };
+  // Helper function to generate WhatsApp message for invoice
+  const generateWhatsAppMessage = (invoice: SalesInvoice): string => {
+    const date = new Date(invoice.createdAt).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
 
-  // Load items when create dialog opens
- 
+    // Format currency
+    const formatCurrency = (amount: number) =>
+      `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+    // Create items list
+    const itemsList = invoice.items
+      .map(
+        (item) =>
+          `• ${item.description || item.itemName || "Item"} - ${item.quantity} ${item.saleUnitCode || "PCS"} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.totalAmount)}`,
+      )
+      .join("\n");
+
+    const message =
+      `*SALES INVOICE*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Invoice #: ${invoice.invoiceNumber}\n` +
+      `Date: ${date}\n` +
+      `Customer: ${invoice.customerName}\n` +
+      `${invoice.customerGSTIN ? `GSTIN: ${invoice.customerGSTIN}\n` : ""}` +
+      `Payment Terms: ${invoice.paymentTerms || "IMMEDIATE"}\n\n` +
+      `*ITEMS:*\n` +
+      `${itemsList}\n\n` +
+      `*SUMMARY:*\n` +
+      `Subtotal: ${formatCurrency(invoice.subtotal)}\n` +
+      `${invoice.totalDiscount > 0 ? `Discount: -${formatCurrency(invoice.totalDiscount)}\n` : ""}` +
+      `CGST: ${formatCurrency(invoice.taxBreakdown.cgst)}\n` +
+      `SGST: ${formatCurrency(invoice.taxBreakdown.sgst)}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `*GRAND TOTAL: ${formatCurrency(invoice.grandTotal)}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Payment Status: ${invoice.paymentStatus}\n` +
+      `Paid: ${formatCurrency(invoice.paidAmount)}\n` +
+      `Outstanding: ${formatCurrency(invoice.outstandingAmount)}\n\n` +
+      `Thank you for your business!`;
+
+    return encodeURIComponent(message);
+  };
+
+  // Function to open WhatsApp
+  const openWhatsApp = (invoice: SalesInvoice) => {
+    // Find customer phone number
+    const customer = customers.find((c) => c.id === invoice.customer_id);
+    const phoneNumber = customer?.phone || invoice.customerPhone;
+
+    if (!phoneNumber) {
+      toast({
+        title: "Phone number not found",
+        description: "This customer doesn't have a phone number on record",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Remove any non-digit characters from phone number
+    const cleanPhone = phoneNumber.replace(/\D/g, "");
+
+    // Generate message
+    const message = generateWhatsAppMessage(invoice);
+
+    // Open WhatsApp (works for both web and mobile)
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, "_blank");
+  };
   // Search items when typing in the create dialog
-  // Remove the initial load useEffect completely
-  // Don't load any items when dialog opens
-
-  // Only load items when searching
   useEffect(() => {
     if (!createOpen || !debouncedSearch || debouncedSearch.length < 2) return;
 
@@ -258,7 +381,7 @@ const SalesInvoices = () => {
         const items = await getItemsApi({
           search: debouncedSearch,
           page: 1,
-          limit: 10, // Limit search results
+          limit: 10,
         });
 
         const activeLineId = Object.keys(itemSearch).find(
@@ -278,7 +401,6 @@ const SalesInvoices = () => {
           [activeLineId]: mappedItems,
         }));
 
-        // Also update inventory items with search results
         setInventoryItems((prev) => {
           const newItems = [...prev];
           mappedItems.forEach((item: InventoryItem) => {
@@ -304,10 +426,8 @@ const SalesInvoices = () => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
 
-    // Get items from search results or load them
     const loadItemsForScan = async () => {
       try {
-        // Only fetch if inventoryItems is empty
         if (inventoryItems.length === 0) {
           const items = await getItemsApi({});
           setInventoryItems(
@@ -333,7 +453,6 @@ const SalesInvoices = () => {
       }
     };
 
-    // Use current inventoryItems or load them
     if (inventoryItems.length === 0) {
       loadItemsForScan().then((items) => {
         const item = items.find(
@@ -367,7 +486,6 @@ const SalesInvoices = () => {
       return;
     }
 
-    // Check if already in line items — increment qty
     const existingIdx = lineItems.findIndex((li) => li.itemId === item.id);
 
     if (existingIdx >= 0) {
@@ -415,7 +533,6 @@ const SalesInvoices = () => {
     setBarcodeInput("");
   };
 
-  // Helper function to get sale units for an item
   const getSaleUnitsForItem = (itemId: string): Unit[] => {
     const item = inventoryItems.find((i) => i.id === itemId);
     if (!item) return [];
@@ -431,19 +548,16 @@ const SalesInvoices = () => {
     return units.filter((u) => saleUnitIds.includes(u.id?.toString()));
   };
 
-  // Get available sale units for an item (for a specific line)
   const getSaleUnits = (_idx: number, itemId: string): Unit[] => {
     return getSaleUnitsForItem(itemId);
   };
 
-  // Convert sale quantity to base quantity
   const getBaseQty = (qty: number, saleUnitId: string): number => {
     const unit = units.find((u) => u.id === saleUnitId);
     if (!unit) return qty;
     return qty * unit.conversionFactor;
   };
 
-  // Calculate line totals
   const calcLineTotals = (li: LineItemForm) => {
     const qty = parseFloat(li.quantity || "0");
     const price = parseFloat(li.unitPrice || "0");
@@ -491,10 +605,8 @@ const SalesInvoices = () => {
   };
 
   const handleSelectItem = (idx: number, itemId: string) => {
-    // Make sure we have the item in inventoryItems
     const item = inventoryItems.find((i) => i.id === itemId);
     if (!item) {
-      // If not found, try to load it
       const loadItem = async () => {
         try {
           const items = await getItemsApi({ search: itemId });
@@ -597,7 +709,7 @@ const SalesInvoices = () => {
       };
     });
 
-    const customer = customers.find((c) => c.id === customerId);
+    const customer = customerSearchResults.find((c) => c.id === customerId);
     const newInvoice = {
       customer_id: customerId,
       customerName: customer?.name || "",
@@ -622,18 +734,21 @@ const SalesInvoices = () => {
         title: "Invoice Created",
         description: `${invoiceNumber} saved as Draft.`,
       });
+
+      // Reset form
+      setCustomerId("");
+      setCustomerSearch("");
+      setCustomerSearchResults([]);
+      setNotes("");
+      setPaymentTerms("IMMEDIATE");
+      setLineItems([emptyLine()]);
+      setCreateOpen(false);
     } catch (err) {
       toast({
         title: "Failed to create invoice",
         variant: "destructive",
       });
     }
-
-    setCustomerId("");
-    setNotes("");
-    setPaymentTerms("IMMEDIATE");
-    setLineItems([emptyLine()]);
-    setCreateOpen(false);
   };
 
   const handleSaleUnitChange = (idx: number, saleUnitId: string) => {
@@ -858,6 +973,15 @@ const SalesInvoices = () => {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => openWhatsApp(inv)}
+                            className="text-[#25D366] hover:text-[#128C7E]"
+                            title="Share on WhatsApp"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() =>
                               printDocument({
                                 title: `Sales Invoice - ${inv.invoiceNumber}`,
@@ -870,6 +994,7 @@ const SalesInvoices = () => {
                           >
                             <Printer className="h-4 w-4 text-muted-foreground" />
                           </Button>
+
                           {inv.invoiceState === "DRAFT" && (
                             <Button
                               variant="ghost"
@@ -1171,6 +1296,14 @@ const SalesInvoices = () => {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="gap-2 text-[#25D366] hover:text-[#128C7E] border-[#25D366]/20 hover:border-[#128C7E]"
+                  onClick={() => openWhatsApp(selectedInvoice)}
+                >
+                  <MessageCircle className="h-4 w-4" /> Share on WhatsApp
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="gap-2"
                   onClick={() => {
                     printDocument({
@@ -1198,25 +1331,92 @@ const SalesInvoices = () => {
             <DialogTitle>New Sales Invoice</DialogTitle>
           </DialogHeader>
           <div className="space-y-5">
-            {/* Header */}
+            {/* Header - Customer Search Field */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
+              {/* Customer Selection with Search */}
+              <div className="space-y-2 relative">
                 <Label>Customer *</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers
-                      .filter((c) => c.isActive)
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} {c.gstin ? `(${c.gstin.slice(0, 5)}…)` : ""}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search customer by name, phone, or GSTIN..."
+                    className="pl-9"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                  />
+                </div>
+
+                {/* Customer dropdown results */}
+                {showCustomerDropdown && customerSearch.length >= 2 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {isLoadingCustomers ? (
+                      <div className="px-4 py-6 text-center text-muted-foreground">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mx-auto" />
+                        <p className="text-xs mt-2">Searching customers...</p>
+                      </div>
+                    ) : customerSearchResults.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-muted-foreground">
+                        <p>No customers found</p>
+                        <p className="text-xs mt-1">
+                          Try a different search term
+                        </p>
+                      </div>
+                    ) : (
+                      customerSearchResults.map((customer) => (
+                        <div
+                          key={customer.id}
+                          className="px-4 py-2 hover:bg-muted cursor-pointer border-b last:border-0"
+                          onClick={() => {
+                            setCustomerId(customer.id);
+                            setCustomerSearch(customer.name);
+                            setShowCustomerDropdown(false);
+                          }}
+                        >
+                          <div className="font-medium">{customer.name}</div>
+                          <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
+                            {customer.phone && <span>📞 {customer.phone}</span>}
+                            {customer.gstin && <span>🔖 {customer.gstin}</span>}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* Selected customer display */}
+                {customerId && !showCustomerDropdown && (
+                  <div className="mt-1 p-2 bg-muted/30 rounded-md border border-muted">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {
+                            customerSearchResults.find(
+                              (c) => c.id === customerId,
+                            )?.name
+                          }
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {customers.find((c) => c.id === customerId)?.gstin &&
+                            `GSTIN: ${customers.find((c) => c.id === customerId)?.gstin}`}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setCustomerId("");
+                          setCustomerSearch("");
+                        }}
+                        className="h-8 px-2"
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
+
               <div className="space-y-2">
                 <Label>Invoice # (Auto)</Label>
                 <Input

@@ -79,12 +79,18 @@ export const fetchPayments = async (filters?: DashboardFilters): Promise<Paginat
  * Fetch customer dashboard data by ID
  * GET /api/inventory/customer/:id
  */
-export const fetchCustomer = async (id: string): Promise<CustomerDashboard> => {
+export const fetchCustomer = async (
+  id: string,
+  filters?: DashboardFilters
+): Promise<CustomerDashboard> => {
   if (!id) throw new Error("Customer ID is required");
-  const res = await api.get(`${API_BASE}/customer/${id}`);
-  return res.data;
-};
 
+  const res = await api.get(`${API_BASE}/customer/${id}`, {
+    params: buildParams(filters),
+  });
+
+  return res.data.data;
+};
 /**
  * Fetch insights data
  * GET /api/inventory/insights

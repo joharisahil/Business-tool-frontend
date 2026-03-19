@@ -4,6 +4,17 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { PaymentRecord } from "@/pages/inventory/types/dashboard";
 
+const paymentMethodStyles: Record<
+  string,
+  { bg: string; text: string }
+> = {
+  UPI: { bg: "bg-purple-100", text: "text-purple-600" },
+  CASH: { bg: "bg-green-100", text: "text-green-600" },
+  BANK_TRANSFER: { bg: "bg-blue-100", text: "text-blue-600" },
+  CARD: { bg: "bg-orange-100", text: "text-orange-600" },
+  CHEQUE: { bg: "bg-gray-100", text: "text-gray-600" },
+};
+
 interface PaymentsTableProps {
   data?: {
     data: PaymentRecord[];
@@ -26,11 +37,11 @@ interface PaymentsTableProps {
 }
 
 function currency(val: number): string {
-  return new Intl.NumberFormat("en-IN", { 
-    style: "currency", 
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
     currency: "INR",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2 
+    maximumFractionDigits: 2,
   }).format(val);
 }
 
@@ -40,7 +51,7 @@ function formatDate(dateString: string): string {
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 }
 
@@ -55,7 +66,13 @@ function getPaymentMethodLabel(method: string): string {
   return map[method] || method;
 }
 
-export function PaymentsTable({ data, isLoading, isError, page, onPageChange }: PaymentsTableProps) {
+export function PaymentsTable({
+  data,
+  isLoading,
+  isError,
+  page,
+  onPageChange,
+}: PaymentsTableProps) {
   if (isError) {
     return (
       <div className="rounded-lg border p-8 text-center text-muted-foreground">
@@ -66,24 +83,32 @@ export function PaymentsTable({ data, isLoading, isError, page, onPageChange }: 
 
   return (
     <div className="rounded-lg border bg-card">
-      {/* Summary Cards */}
+
+      {/* 🔹 Summary Section */}
       {data?.summary && !isLoading && (
         <div className="grid grid-cols-3 gap-4 p-4 border-b bg-muted/20">
           <div>
             <p className="text-xs text-muted-foreground">Total Received</p>
-            <p className="text-lg font-bold text-success">{currency(data.summary.totalReceived)}</p>
+            <p className="text-lg font-bold text-green-600">
+              {currency(data.summary.totalReceived)}
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Total Payments</p>
-            <p className="text-lg font-bold">{data.summary.totalPayments}</p>
+            <p className="text-lg font-bold">
+              {data.summary.totalPayments}
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Average Payment</p>
-            <p className="text-lg font-bold">{currency(data.summary.avgPayment)}</p>
+            <p className="text-lg font-bold">
+              {currency(data.summary.avgPayment)}
+            </p>
           </div>
         </div>
       )}
 
+      {/* 🔹 Table */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -95,6 +120,7 @@ export function PaymentsTable({ data, isLoading, isError, page, onPageChange }: 
             <TableHead>Date</TableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
@@ -114,61 +140,81 @@ export function PaymentsTable({ data, isLoading, isError, page, onPageChange }: 
               </TableCell>
             </TableRow>
           ) : (
-            data.data.map((payment) => (
-              <TableRow key={payment._id}>
-                <TableCell className="font-medium font-mono text-xs">
-                  {payment.invoiceNumber}
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {payment.invoice_id?.customerName || "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {payment.customer_id}
-                    </p>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {currency(payment.amount)}
-                </TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                    {getPaymentMethodLabel(payment.method)}
-                  </span>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {payment.reference || "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-xs">
-                  {formatDate(payment.receivedAt || payment.createdAt)}
-                </TableCell>
-              </TableRow>
-            ))
+            data.data.map((payment) => {
+              // ✅ FIXED: logic outside JSX
+              const style = paymentMethodStyles[payment.method] || {
+                bg: "bg-gray-100",
+                text: "text-gray-600",
+              };
+
+              return (
+                <TableRow key={payment._id} className="hover:bg-muted/30 transition-colors">
+                  
+                  <TableCell className="font-medium font-mono text-xs">
+                    {payment.invoiceNumber}
+                  </TableCell>
+
+                  <TableCell>
+                    <div>
+                      <p className="text-sm font-medium">
+                        {payment.invoice_id?.customerName || "—"}
+                      </p>
+                     
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-right font-semibold">
+                    {currency(payment.amount)}
+                  </TableCell>
+
+                  {/* ✅ Colored Method Badge */}
+                  <TableCell>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${style.bg} ${style.text}`}
+                    >
+                      {getPaymentMethodLabel(payment.method)}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {payment.reference || "—"}
+                  </TableCell>
+
+                  <TableCell className="text-muted-foreground text-xs">
+                    {formatDate(payment.receivedAt || payment.createdAt)}
+                  </TableCell>
+
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>
-      
+
+      {/* 🔹 Pagination */}
       {data?.pagination && data.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between border-t px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            Page {data.pagination.page} of {data.pagination.totalPages} · {data.pagination.total} payments
+            Page {data.pagination.page} of {data.pagination.totalPages} ·{" "}
+            {data.pagination.total} payments
           </p>
+
           <div className="flex gap-1">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-8 w-8" 
-              disabled={page <= 1} 
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page <= 1}
               onClick={() => onPageChange(page - 1)}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-8 w-8" 
-              disabled={page >= data.pagination.totalPages} 
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page >= data.pagination.totalPages}
               onClick={() => onPageChange(page + 1)}
             >
               <ChevronRight className="h-4 w-4" />
@@ -178,4 +224,4 @@ export function PaymentsTable({ data, isLoading, isError, page, onPageChange }: 
       )}
     </div>
   );
-};
+}

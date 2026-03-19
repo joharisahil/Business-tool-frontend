@@ -11,7 +11,9 @@ import {
   mapAuditLog,
   mapStockAdjustment,
   mapSalesInvoice,
+  mapCustomer
 } from "@/pages/inventory/mapper/inventoryMapper";
+import { useParams } from "react-router-dom";
 
 /* =========================================================
    DASHBOARD
@@ -449,11 +451,43 @@ export const getRelatedUnitsApi = async (id: string) => {
 /* =========================================================
    CUSTOMERS
 ========================================================= */
-export const getCustomersApi = async () => {
-  const res = await api.get("/inventory/customers");
-  return res.data.data.map(mapVendor); // if you create mapCustomer replace this
-};
+// In your inventoryApi.ts file
 
+export const getCustomersApi = async (params?: { 
+  search?: string; 
+  page?: number; 
+  limit?: number;
+  isActive?: boolean;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.limit) queryParams.append("limit", params.limit.toString());
+  if (params?.isActive !== undefined) queryParams.append("isActive", params.isActive.toString());
+  
+  const url = `/inventory/customers/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const res = await api.get(url);
+  
+  // Handle different response structures
+  // If the API returns { success: true, data: [...] }
+  if (res.data?.data && Array.isArray(res.data.data)) {
+    return res.data.data.map(mapCustomer);
+  }
+  
+  // If the API returns array directly
+  if (Array.isArray(res.data)) {
+    return res.data.map(mapCustomer);
+  }
+  
+  // If the API returns data in res.data (already unwrapped)
+  if (Array.isArray(res.data?.customers)) {
+    return res.data.customers.map(mapCustomer);
+  }
+  
+  // Default fallback
+  return [];
+};
 export const getCustomerApi = async (id: string) => {
   const res = await api.get(`/inventory/customers/${id}`);
   return res.data.data;

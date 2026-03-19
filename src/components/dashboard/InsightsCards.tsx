@@ -10,69 +10,98 @@ interface InsightsCardsProps {
 }
 
 function currency(val: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(val);
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+  }).format(val);
 }
-
 export function InsightsCards({ data, isLoading, isError }: InsightsCardsProps) {
   if (isError) {
-    return <div className="rounded-lg border p-8 text-center text-muted-foreground">Failed to load insights.</div>;
+    return (
+      <div className="rounded-lg border p-8 text-center text-muted-foreground">
+        Failed to load insights.
+      </div>
+    );
   }
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <Card className="transition-shadow hover:shadow-md">
+      
+      {/* 🟢 Top Customer */}
+      <Card className="border-green-200 transition-all hover:shadow-md">
         <CardContent className="flex items-start gap-3 p-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-paid/10">
-            <Award className="h-4.5 w-4.5 text-status-paid" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+            <Award className="h-5 w-5 text-green-600" />
           </div>
+
           <div>
             <p className="text-sm text-muted-foreground">Top Customer</p>
+
             {isLoading ? (
               <Skeleton className="mt-1 h-5 w-28" />
             ) : (
               <>
-                <p className="mt-0.5 font-semibold">{data?.topCustomer.name ?? "—"}</p>
-                <p className="text-sm text-muted-foreground">{data ? currency(data.topCustomer.totalSpent) : ""}</p>
+                <p className="mt-0.5 font-semibold text-gray-900">
+                  {data?.topCustomer.name ?? "—"}
+                </p>
+                <p className="text-sm text-green-600 font-medium">
+                  {data ? currency(data.topCustomer.totalSpent) : ""}
+                </p>
               </>
             )}
           </div>
         </CardContent>
       </Card>
 
-      <Card className="transition-shadow hover:shadow-md">
+      {/* 🔵 Highest Sale */}
+      <Card className="border-blue-200 transition-all hover:shadow-md">
         <CardContent className="flex items-start gap-3 p-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <TrendingUp className="h-4.5 w-4.5 text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+            <TrendingUp className="h-5 w-5 text-blue-600" />
           </div>
+
           <div>
             <p className="text-sm text-muted-foreground">Highest Sale</p>
+
             {isLoading ? (
               <Skeleton className="mt-1 h-5 w-28" />
             ) : (
               <>
-                <p className="mt-0.5 font-semibold">{data ? currency(data.highestSale.amount) : "—"}</p>
-                <p className="text-sm text-muted-foreground">{data?.highestSale.customerName} · {data?.highestSale.invoiceNumber}</p>
+                <p className="mt-0.5 font-semibold text-gray-900">
+                  {data ? currency(data.highestSale.amount) : "—"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {data?.highestSale.customerName} ·{" "}
+                  {data?.highestSale.invoiceNumber}
+                </p>
               </>
             )}
           </div>
         </CardContent>
       </Card>
 
-      <Card className="transition-shadow hover:shadow-md">
+      {/* 🔴 Pending */}
+      <Card className="border-red-200 transition-all hover:shadow-md">
         <CardContent className="flex items-start gap-3 p-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-pending/10">
-            <AlertCircle className="h-4.5 w-4.5 text-status-pending" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100">
+            <AlertCircle className="h-5 w-5 text-red-600" />
           </div>
+
           <div>
             <p className="text-sm text-muted-foreground">Pending Invoices</p>
+
             {isLoading ? (
               <Skeleton className="mt-1 h-5 w-16" />
             ) : (
-              <p className="mt-0.5 text-2xl font-semibold">{data?.totalPendingInvoices ?? "—"}</p>
+              <p className="mt-0.5 text-2xl font-semibold text-red-600">
+                {data?.totalPendingInvoices ?? "—"}
+              </p>
             )}
           </div>
         </CardContent>
       </Card>
+
     </div>
   );
 }

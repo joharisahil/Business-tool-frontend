@@ -21,27 +21,39 @@ function formatCurrency(val?: number) {
 // ✅ Cards config (safe formatters)
 const cards = [
   {
-    key: "totalSales" as const,
+    key: "totalSales",
     label: "Total Sales",
     icon: DollarSign,
+    color: "text-green-600",
+    bg: "bg-green-100",
+    border: "border-green-200",
     format: (v?: number) => formatCurrency(v),
   },
   {
-    key: "totalOrders" as const,
+    key: "totalOrders",
     label: "Total Orders",
     icon: ShoppingCart,
+    color: "text-blue-600",
+    bg: "bg-blue-100",
+    border: "border-blue-200",
     format: (v?: number) => (v ?? 0).toLocaleString(),
   },
   {
-    key: "paymentsReceived" as const,
+    key: "paymentsReceived",
     label: "Payments Received",
     icon: CreditCard,
+    color: "text-purple-600",
+    bg: "bg-purple-100",
+    border: "border-purple-200",
     format: (v?: number) => formatCurrency(v),
   },
   {
-    key: "pendingAmount" as const,
+    key: "pendingAmount",
     label: "Pending Amount",
     icon: Clock,
+    color: "text-red-600",
+    bg: "bg-red-100",
+    border: "border-red-200",
     format: (v?: number) => formatCurrency(v),
   },
 ];
@@ -75,11 +87,14 @@ export function KpiCards({ data, isLoading, isError }: KpiCardsProps) {
       
 
         return (
-          <Card key={c.key} className="transition-shadow hover:shadow-md">
+          <Card
+  key={c.key}
+  className={`transition-all hover:shadow-md border ${c.border}`}
+>
             <CardContent className="flex items-center gap-4 p-5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <Icon className="h-5 w-5 text-primary" />
-              </div>
+             <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${c.bg}`}>
+  <Icon className={`h-5 w-5 ${c.color}`} />
+</div>
 
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">{c.label}</p>
