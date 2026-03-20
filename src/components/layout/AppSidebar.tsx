@@ -11,7 +11,8 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+     
+         { to: "/dashboard", icon: BarChart3, label: "Sales Summary" },
     ],
   },
 
@@ -22,14 +23,14 @@ const navGroups = [
       { to: "/sales", icon: Receipt, label: "Sales Invoices" },
       { to: "/sales/payments", icon: CreditCard, label: "Sales Payments" },
       { to: "/sales/reports", icon: BarChart3, label: "Sales Reports" },
-      { to: "/sales/dashboard", icon: BarChart3, label: "Sales Summary" },
       { to: "/sales/gst", icon: IndianRupee, label: "GST Reports" },
     ],
   },
-
+  
   {
     label: "Inventory",
     items: [
+      { to: "/inven/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { to: "/inventory", icon: Package, label: "Inventory Items" },
       { to: "/transactions", icon: ArrowLeftRight, label: "Stock Transactions" },
       { to: "/adjustments", icon: SlidersHorizontal, label: "Stock Adjustments" },

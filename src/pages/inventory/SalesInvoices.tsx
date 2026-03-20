@@ -278,11 +278,13 @@ useEffect(() => {
       ]);
 
       setInvoices(
+        
         invoicesRes.data.map((inv: any) => ({
+          
           ...inv,
           id: inv._id || inv.id,
-           customerPhone: inv.customer_id?.phone,
-    customerName: inv.customer_id?.name || inv.customerName,
+    //        customerPhone: inv.customer_id?.phone,
+    // customerName: inv.customer_id?.name || inv.customerName,
         })),
       );
 
@@ -321,7 +323,7 @@ useEffect(() => {
           `• ${item.description || item.itemName || "Item"} - ${item.quantity} ${item.saleUnitCode || "PCS"} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.totalAmount)}`,
       )
       .join("\n");
-
+      console.log(invoice);
     const message =
       `*SALES INVOICE*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -351,8 +353,9 @@ useEffect(() => {
   // Function to open WhatsApp
   const openWhatsApp = (invoice: SalesInvoice) => {
     // Find customer phone number
-    const customer = customers.find((c) => c.id === invoice.customer_id);
+    const customer = customers.find((c) => c.id === invoice.customerId);
     const phoneNumber = customer?.phone || invoice.customerPhone;
+    console.log(invoice.customerPhone);
 
     if (!phoneNumber) {
       toast({
@@ -722,33 +725,30 @@ useEffect(() => {
       notes,
     };
 
-    try {
-      const createdInvoice = await createSalesInvoiceApi(newInvoice);
+try {
+  await createSalesInvoiceApi(newInvoice);
 
-      setInvoices((prev) => [
-        { ...createdInvoice, id: createdInvoice._id || createdInvoice.id },
-        ...prev,
-      ]);
+  await loadData(); // ✅ ONLY THIS
 
-      toast({
-        title: "Invoice Created",
-        description: `${invoiceNumber} saved as Draft.`,
-      });
+  toast({
+    title: "Invoice Created",
+    description: `${invoiceNumber} saved as Draft.`,
+  });
 
-      // Reset form
-      setCustomerId("");
-      setCustomerSearch("");
-      setCustomerSearchResults([]);
-      setNotes("");
-      setPaymentTerms("IMMEDIATE");
-      setLineItems([emptyLine()]);
-      setCreateOpen(false);
-    } catch (err) {
-      toast({
-        title: "Failed to create invoice",
-        variant: "destructive",
-      });
-    }
+  // Reset form
+  setCustomerId("");
+  setCustomerSearch("");
+  setCustomerSearchResults([]);
+  setNotes("");
+  setPaymentTerms("IMMEDIATE");
+  setLineItems([emptyLine()]);
+  setCreateOpen(false);
+} catch (err) {
+  toast({
+    title: "Failed to create invoice",
+    variant: "destructive",
+  });
+}
   };
 
   const handleSaleUnitChange = (idx: number, saleUnitId: string) => {

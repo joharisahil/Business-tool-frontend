@@ -63,18 +63,18 @@ const App = () => (
             >
 
               {/* Dashboard */}
-              <Route path="/dashboard" element={<InventoryDashboard />} />
-
+              <Route path="/dashboard" element={<Dashboard />} />
               {/* SALES */}
               <Route path="/customers" element={<Customers />} />
               <Route path="/sales" element={<SalesInvoices />} />
               <Route path="/sales/payments" element={<SalesPayments />} />
               <Route path="/sales/reports" element={<SalesReports />} />
               <Route path="/sales/gst" element={<GSTReports />} />
-              <Route path="/sales/dashboard" element={<Dashboard />} />
+              
               
 
               {/* INVENTORY */}
+              <Route path="/inven/dashboard" element={<InventoryDashboard />} />
               <Route path="/inventory" element={<InventoryItems />} />
               <Route path="/transactions" element={<StockTransactions />} />
               <Route path="/adjustments" element={<StockAdjustments />} />

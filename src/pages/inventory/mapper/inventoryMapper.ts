@@ -12,7 +12,7 @@ import type {
   AuditLogEntry,
   StockAdjustment,
   SalesInvoice,
-  PaymentRecord
+  PaymentRecord,
 } from "../types/inventory";
 
 /* =====================================================
@@ -59,7 +59,7 @@ export const mapInventoryItem = (raw: any): InventoryItem => ({
 
   unit: raw.unit,
 
-  saleUnits: raw.saleUnits || [],   // ⭐ ADD THIS
+  saleUnits: raw.saleUnits || [], // ⭐ ADD THIS
 
   purchaseUnitId: raw.purchaseUnit_id || null, // optional but good
 
@@ -223,10 +223,7 @@ export const mapAuditLog = (raw: any): AuditLogEntry => ({
   beforeValue: raw.beforeValue || undefined,
   afterValue: raw.afterValue || undefined,
 
-  performedBy:
-    raw.performerName ||
-    raw.performedBy?.name ||
-    "",
+  performedBy: raw.performerName || raw.performedBy?.name || "",
 
   performedAt: raw.createdAt,
 
@@ -253,52 +250,54 @@ export const mapStockAdjustment = (raw: any): StockAdjustment => ({
   adjustedAt: raw.adjustedAt,
 });
 
-
-
 export const mapSalesInvoice = (raw: any): SalesInvoice => ({
   id: raw._id || raw.id,
-
+customerId: raw.customer_id?._id || raw.customerId,
   invoiceNumber: raw.invoiceNumber,
-  customerName: raw.customerName,
-  customerGSTIN: raw.customerGSTIN,
+
+  // ✅ FIXED CUSTOMER MAPPING
+  customerName: raw.customer_id?.name || raw.customerName || "",
+  customerGSTIN: raw.customer_id?.gstin || raw.customerGSTIN || "",
+  customerPhone: raw.customer_id?.phone || raw.customerPhone || "",
 
   invoiceState: raw.invoiceState,
   paymentStatus: raw.paymentStatus,
 
-items:
-  raw.items?.map((i: any) => ({
-    id: i._id || i.id,
+  items:
+    raw.items?.map((i: any) => ({
+      id: i._id || i.id,
 
-    itemId: i.item_id || i.itemId,
+      itemId: i.item_id || i.itemId,
 
-    description: i.description || i.itemName || "",
-    itemName: i.itemName || i.description || "",
+      description: i.description || i.itemName || "",
+      itemName: i.itemName || i.description || "",
 
-    quantity: i.quantity,
-    unitPrice: i.unitPrice,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
 
-    gstPercentage: i.gstPercentage,
+      gstPercentage: i.gstPercentage,
 
-    discount: i.discount || 0,
+      discount: i.discount || 0,
 
-    totalAmount: i.totalAmount,
+      totalAmount: i.totalAmount,
 
-    saleUnitCode: i.saleUnitCode || "",
-    baseQty: i.baseQty || undefined,
-  })) || [],
+      saleUnitCode: i.saleUnitCode || "",
+      baseQty: i.baseQty || undefined,
+    })) || [],
 
   subtotal: raw.subtotal,
+  totalDiscount: raw.totalDiscount || 0,
 
   taxBreakdown: {
-  cgst: raw.taxBreakdown?.cgst || 0,
-  sgst: raw.taxBreakdown?.sgst || 0,
-  igst: raw.taxBreakdown?.igst || 0,
-  totalTax:
-    raw.taxBreakdown?.totalTax ??
-    (raw.taxBreakdown?.cgst || 0) +
-      (raw.taxBreakdown?.sgst || 0) +
-      (raw.taxBreakdown?.igst || 0),
-},
+    cgst: raw.taxBreakdown?.cgst || 0,
+    sgst: raw.taxBreakdown?.sgst || 0,
+    igst: raw.taxBreakdown?.igst || 0,
+    totalTax:
+      raw.taxBreakdown?.totalTax ??
+      (raw.taxBreakdown?.cgst || 0) +
+        (raw.taxBreakdown?.sgst || 0) +
+        (raw.taxBreakdown?.igst || 0),
+  },
 
   grandTotal: raw.grandTotal,
 
@@ -307,20 +306,20 @@ items:
 
   notes: raw.notes,
 
- payments:
-  raw.payments?.map((p: any) => ({
-    id: p._id || p.id,
-    invoiceId: p.invoiceId || raw._id,
-    amount: p.amount,
-    method: p.method,
-    reference: p.reference,
-    paidAt: p.paidAt,
-    recordedBy:
-      typeof p.recordedBy === "string"
-        ? p.recordedBy
-        : p.recordedBy?.name || "",
-    journalEntryId: p.journalEntryId,
-  })) || [],
+  payments:
+    raw.payments?.map((p: any) => ({
+      id: p._id || p.id,
+      invoiceId: p.invoiceId || raw._id,
+      amount: p.amount,
+      method: p.method,
+      reference: p.reference,
+      paidAt: p.paidAt,
+      recordedBy:
+        typeof p.recordedBy === "string"
+          ? p.recordedBy
+          : p.recordedBy?.name || "",
+      journalEntryId: p.journalEntryId,
+    })) || [],
 
   approvedBy: raw.approvedBy,
   approvedAt: raw.approvedAt,
@@ -329,7 +328,6 @@ items:
 
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt || raw.createdAt,
-  
 });
 
 /* =====================================================
@@ -368,8 +366,7 @@ export const mapSalesCreditNote = (raw: any) => ({
 
   creditNoteNumber: raw.creditNoteNumber,
 
-  originalInvoiceId:
-    raw.originalInvoiceId || raw.originalInvoice?._id,
+  originalInvoiceId: raw.originalInvoiceId || raw.originalInvoice?._id,
 
   originalInvoiceNumber:
     raw.originalInvoiceNumber || raw.originalInvoice?.invoiceNumber,

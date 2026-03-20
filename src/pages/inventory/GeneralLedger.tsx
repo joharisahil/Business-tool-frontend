@@ -1,5 +1,3 @@
-import { Layout as AppLayout } from "@/components/layout/Layout";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +52,7 @@ const GeneralLedger = () => {
   const [journalList, setJournalList] = useState<JournalEntry[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reversalNote, setReversalNote] = useState("");
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -151,12 +150,14 @@ const GeneralLedger = () => {
     if (!reversalEntry) return;
 
     try {
-      await reverseJournalEntryApi(reversalEntry.id);
-
+      await reverseJournalEntryApi(reversalEntry.id, {
+        narration: reversalNote,
+      });
       const journalsData = await getJournalEntriesApi();
       setJournalList(journalsData);
 
       setReversalEntry(null);
+      setReversalNote("");
 
       toast({
         title: "Journal Reversed",
@@ -275,7 +276,7 @@ const GeneralLedger = () => {
                             <th className="text-center px-5 py-2 text-xs font-medium text-muted-foreground uppercase">
                               Drilldown
                             </th>
-                          </tr>
+                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {accounts.map((acc) => {
@@ -356,14 +357,14 @@ const GeneralLedger = () => {
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="PURCHASE_INVOICE">
+                      <SelectItem key="all" value="all">All Types</SelectItem>
+                      <SelectItem key="PURCHASE_INVOICE" value="PURCHASE_INVOICE">
                         Purchase Invoice
                       </SelectItem>
-                      <SelectItem value="PAYMENT">Payment</SelectItem>
-                      <SelectItem value="CREDIT_NOTE">Credit Note</SelectItem>
-                      <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
-                      <SelectItem value="REVERSAL">Reversal</SelectItem>
+                      <SelectItem key="PAYMENT" value="PAYMENT">Payment</SelectItem>
+                      <SelectItem key="CREDIT_NOTE" value="CREDIT_NOTE">Credit Note</SelectItem>
+                      <SelectItem key="ADJUSTMENT" value="ADJUSTMENT">Adjustment</SelectItem>
+                      <SelectItem key="REVERSAL" value="REVERSAL">Reversal</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -374,7 +375,7 @@ const GeneralLedger = () => {
                       <SelectValue placeholder="Account" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Accounts</SelectItem>
+                      <SelectItem key="all-accounts" value="all">All Accounts</SelectItem>
                       {ledgerAccounts.map((a) => (
                         <SelectItem key={a.id} value={a.id}>
                           {a.code} · {a.name}
@@ -588,7 +589,7 @@ const GeneralLedger = () => {
                   <tbody className="divide-y divide-border">
                     {ledgerAccounts.map((acc) => (
                       <tr
-                        key={acc.account_id}
+                        key={acc.account_id || acc.id}
                         className="hover:bg-muted/30 transition-colors"
                       >
                         <td className="px-5 py-2.5 font-mono text-xs">
@@ -669,12 +670,25 @@ const GeneralLedger = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reverse Journal Entry?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will create a counter-entry that nullifies{" "}
-              <strong>{reversalEntry?.entryNumber}</strong> by swapping all
-              debits and credits. The original entry will be marked as REVERSED
-              and cannot be reversed again. This action is permanent and
-              audited.
+            <AlertDialogDescription asChild>
+              {/* Changed from <p> to <div> to avoid nesting issues */}
+              <div className="text-sm text-muted-foreground">
+                This will create a counter-entry that nullifies{" "}
+                <strong>{reversalEntry?.entryNumber}</strong> by swapping all
+                debits and credits. The original entry will be marked as REVERSED
+                and cannot be reversed again. This action is permanent and
+                audited.
+                <div className="space-y-1 mt-2">
+                  <label className="text-xs text-muted-foreground">
+                    Reversal Note (optional)
+                  </label>
+                  <Input
+                    placeholder="Enter reason or note for reversal..."
+                    value={reversalNote}
+                    onChange={(e) => setReversalNote(e.target.value)}
+                  />
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -362,6 +362,7 @@ export interface SalesInvoice {
   invoiceNumber: string;
 
   customerId?: string;
+  customerPhone?: string;
   customerName: string;
   customerGSTIN?: string;
 
@@ -411,9 +412,8 @@ export type CustomerType =
   | "ONLINE";
 
 export interface Customer {
-
-  id?: string
-  _id?: string
+  id?: string;
+  _id?: string;
 
   name: string;
   companyName?: string;

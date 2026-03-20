@@ -291,11 +291,13 @@ export const getJournalEntryApi = async (id: string) => {
   return mapJournalEntry(res.data.data);
 };
 
-export const reverseJournalEntryApi = async (id: string) => {
-  const res = await api.post(`/inventory/journal/${id}/reverse`);
+export const reverseJournalEntryApi = async (
+  id: string,
+  data: { narration?: string } = {}
+) => {
+  const res = await api.post(`/inventory/journal/${id}/reverse`, data);
   return mapJournalEntry(res.data.data);
 };
-
 /* =========================================================
    AUDIT
 ========================================================= */
