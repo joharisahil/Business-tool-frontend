@@ -26,9 +26,21 @@ export const getInventoryDashboardApi = async () => {
 /* =========================================================
    CATEGORIES
 ========================================================= */
-export const getCategoriesApi = async () => {
-  const res = await api.get("/inventory/categories");
-  return res.data.data.map(mapCategory);
+export const getCategoriesApi = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+}) => {
+  const queryString = new URLSearchParams();
+  if (params?.page) queryString.append("page", params.page.toString());
+  if (params?.limit) queryString.append("limit", params.limit.toString());
+  if (params?.search) queryString.append("search", params.search);
+  if (params?.isActive !== undefined) queryString.append("isActive", params.isActive.toString());
+  
+  const url = `/inventory/categories${queryString.toString() ? `?${queryString.toString()}` : ""}`;
+  const res = await api.get(url);
+  return res.data;
 };
 
 export const createCategoryApi = async (payload: any) => {
@@ -138,9 +150,68 @@ export const getVendorOutstandingApi = async (vendorId: string) => {
 /* =========================================================
    INVOICES
 ========================================================= */
-export const getInvoicesApi = async () => {
-  const res = await api.get("/inventory/invoices");
-  return res.data.data.map(mapInvoice);
+export const getInvoicesApi = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  state?: string;
+  paymentStatus?: string;
+  fromDate?: string;
+  toDate?: string;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.limit) queryParams.append("limit", params.limit.toString());
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.state && params.state !== "ALL") queryParams.append("state", params.state);
+  if (params?.paymentStatus && params.paymentStatus !== "ALL") queryParams.append("paymentStatus", params.paymentStatus);
+  if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
+  if (params?.toDate) queryParams.append("toDate", params.toDate);
+  
+  const url = `/inventory/invoices${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const res = await api.get(url);
+  
+  // If backend already returns paginated response
+  if (res.data && res.data.data && Array.isArray(res.data.data)) {
+    return {
+      success: res.data.success,
+      data: res.data.data.map(mapInvoice),
+      total: res.data.total,
+      page: res.data.page,
+      pages: res.data.pages,
+      limit: res.data.limit,
+    };
+  }
+  
+  // If backend returns array directly, paginate client-side
+  if (Array.isArray(res.data)) {
+    const allInvoices = res.data.map(mapInvoice);
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginatedData = allInvoices.slice(start, end);
+    
+    return {
+      success: true,
+      data: paginatedData,
+      total: allInvoices.length,
+      page: page,
+      pages: Math.ceil(allInvoices.length / limit),
+      limit: limit,
+    };
+  }
+  
+  // Fallback for any other format
+  return {
+    success: true,
+    data: [],
+    total: 0,
+    page: params?.page || 1,
+    pages: 1,
+    limit: params?.limit || 10,
+  };
 };
 
 export const getInvoiceApi = async (id: string) => {
@@ -192,9 +263,30 @@ export const getStockSummaryApi = async () => {
   return res.data.data;
 };
 
-export const getStockTransactionsApi = async () => {
-  const res = await api.get("/inventory/stock/transactions");
-  return res.data.data;
+export const getStockTransactionsApi = async (params?: {
+  page?: number;
+  limit?: number;
+  type?: string;
+  referenceType?: string;
+  search?: string;
+  fromDate?: string;
+  toDate?: string;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.limit) queryParams.append("limit", params.limit.toString());
+  if (params?.type && params.type !== "all") queryParams.append("type", params.type);
+  if (params?.referenceType && params.referenceType !== "all") queryParams.append("referenceType", params.referenceType);
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
+  if (params?.toDate) queryParams.append("toDate", params.toDate);
+  
+  const url = `/inventory/stock/transactions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const res = await api.get(url);
+  
+  // Return the full response with pagination info
+  return res.data;
 };
 
 export const getExpiryDashboardApi = async (days?: number) => {
@@ -301,11 +393,102 @@ export const reverseJournalEntryApi = async (
 /* =========================================================
    AUDIT
 ========================================================= */
-export const getAuditLogsApi = async () => {
-  const res = await api.get("/inventory/audit");
-  return res.data.logs.map(mapAuditLog);
+export const getAuditLogsApi = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  entityType?: string;
+  action?: string;
+  performedBy?: string;
+  fromDate?: string;
+  toDate?: string;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.limit) queryParams.append("limit", params.limit.toString());
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.entityType && params.entityType !== "all") queryParams.append("entityType", params.entityType);
+  if (params?.action && params.action !== "all") queryParams.append("action", params.action);
+  if (params?.performedBy) queryParams.append("performedBy", params.performedBy);
+  if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
+  if (params?.toDate) queryParams.append("toDate", params.toDate);
+  
+  const url = `/inventory/audit${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const res = await api.get(url);
+  
+  // If backend already returns paginated response with logs array
+  if (res.data && res.data.logs && Array.isArray(res.data.logs)) {
+    return {
+      success: res.data.success,
+      data: res.data.logs.map(mapAuditLog),
+      total: res.data.total,
+      page: res.data.page,
+      pages: res.data.pages,
+      limit: res.data.limit,
+    };
+  }
+  
+  // If backend returns paginated response with data array
+  if (res.data && res.data.data && Array.isArray(res.data.data)) {
+    return {
+      success: res.data.success,
+      data: res.data.data.map(mapAuditLog),
+      total: res.data.total,
+      page: res.data.page,
+      pages: res.data.pages,
+      limit: res.data.limit,
+    };
+  }
+  
+  // If backend returns array directly (no pagination)
+  if (Array.isArray(res.data)) {
+    const allLogs = res.data.map(mapAuditLog);
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginatedData = allLogs.slice(start, end);
+    
+    return {
+      success: true,
+      data: paginatedData,
+      total: allLogs.length,
+      page: page,
+      pages: Math.ceil(allLogs.length / limit),
+      limit: limit,
+    };
+  }
+  
+  // If backend returns logs array directly
+  if (res.data && Array.isArray(res.data.logs)) {
+    const allLogs = res.data.logs.map(mapAuditLog);
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginatedData = allLogs.slice(start, end);
+    
+    return {
+      success: true,
+      data: paginatedData,
+      total: allLogs.length,
+      page: page,
+      pages: Math.ceil(allLogs.length / limit),
+      limit: limit,
+    };
+  }
+  
+  // Fallback for any other format
+  return {
+    success: true,
+    data: [],
+    total: 0,
+    page: params?.page || 1,
+    pages: 1,
+    limit: params?.limit || 10,
+  };
 };
-
 /* =========================================================
    SALES INVOICES
 ========================================================= */
@@ -313,10 +496,12 @@ export const getSalesInvoicesApi = async (params?: any) => {
   const res = await api.get("/inventory/sales-invoices", { params });
 
   return {
-    data: res.data.data.map(mapSalesInvoice),
-    total: res.data.total,
-    pages: res.data.pages,
-    page: res.data.page,
+    data: (res.data?.data || []).map(mapSalesInvoice),
+
+    // ✅ FIX HERE
+    total: res.data?.pagination?.total || 0,
+    pages: res.data?.pagination?.totalPages || 1,
+    page: res.data?.pagination?.page || 1,
   };
 };
 
@@ -363,9 +548,28 @@ export const getSalesPaymentHistoryApi = async (invoiceId: string) => {
   const res = await api.get(`/inventory/sales-invoices/${invoiceId}/payments`);
   return res.data.data;
 };
-export const getAllSalesPaymentsApi = async () => {
-  const res = await api.get("/inventory/sales-payments");
-  return res.data.data;
+export const getAllSalesPaymentsApi = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  method?: string;
+  fromDate?: string;
+  toDate?: string;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.limit) queryParams.append("limit", params.limit.toString());
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.method) queryParams.append("method", params.method);
+  if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
+  if (params?.toDate) queryParams.append("toDate", params.toDate);
+  
+  const url = `/inventory/sales-payments${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const res = await api.get(url);
+  
+  // Return the full response with pagination info
+  return res.data;
 };
 /* =========================================================
    SALES CREDIT NOTES
@@ -460,6 +664,7 @@ export const getCustomersApi = async (params?: {
   page?: number; 
   limit?: number;
   isActive?: boolean;
+  customerType?: string; // ✅ add this
 }) => {
   const queryParams = new URLSearchParams();
   
@@ -467,28 +672,19 @@ export const getCustomersApi = async (params?: {
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
   if (params?.isActive !== undefined) queryParams.append("isActive", params.isActive.toString());
-  
+  if (params?.customerType) queryParams.append("customerType", params.customerType); // ✅
+
   const url = `/inventory/customers/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const res = await api.get(url);
-  
-  // Handle different response structures
-  // If the API returns { success: true, data: [...] }
-  if (res.data?.data && Array.isArray(res.data.data)) {
-    return res.data.data.map(mapCustomer);
-  }
-  
-  // If the API returns array directly
-  if (Array.isArray(res.data)) {
-    return res.data.map(mapCustomer);
-  }
-  
-  // If the API returns data in res.data (already unwrapped)
-  if (Array.isArray(res.data?.customers)) {
-    return res.data.customers.map(mapCustomer);
-  }
-  
-  // Default fallback
-  return [];
+
+  // ✅ RETURN FULL RESPONSE (IMPORTANT)
+  return {
+    success: res.data.success,
+    data: (res.data.data || []).map(mapCustomer),
+    total: res.data.total || 0,
+    page: res.data.page || 1,
+    pages: res.data.pages || 1,
+  };
 };
 export const getCustomerApi = async (id: string) => {
   const res = await api.get(`/inventory/customers/${id}`);

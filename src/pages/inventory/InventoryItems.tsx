@@ -56,12 +56,28 @@ interface PaginatedResponse<T> {
   };
 }
 
+// Update Category interface to match API response
 interface Category {
-  id: string;
-  _id?: string;
+  _id: string; // ✅ primary
   name: string;
   description?: string;
   isActive: boolean;
+}
+
+// Categories API response type
+interface CategoriesResponse {
+  success: boolean;
+  data: Category[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
+  stats?: {
+    total: number;
+    active: number;
+    inactive: number;
+    withItems: number;
+  };
 }
 
 interface Unit {
@@ -95,27 +111,37 @@ const InventoryItems = () => {
   /* ===============================
      QUERIES (Using paginated API with filters)
   =============================== */
-  const { data, isLoading, isFetching } = useQuery<PaginatedResponse<InventoryItem>>({
+  const { data, isLoading, isFetching } = useQuery<
+    PaginatedResponse<InventoryItem>
+  >({
     queryKey: ["inventory-items", page, debouncedSearch, categoryFilter],
-    queryFn: () => 
-      getPaginatedItemsApi({ 
-        page, 
+    queryFn: () =>
+      getPaginatedItemsApi({
+        page,
         limit,
         search: debouncedSearch || undefined,
         category: categoryFilter !== "all" ? categoryFilter : undefined,
-    
       }),
-    // Replace keepPreviousData with this approach for older React Query versions
     placeholderData: (previousData) => previousData,
   });
 
   const items = data?.data || [];
-  const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0, limit: 10 };
+  const pagination = data?.pagination || {
+    page: 1,
+    totalPages: 1,
+    total: 0,
+    limit: 10,
+  };
 
-  const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ["categories"],
-    queryFn: getCategoriesApi,
-  });
+  // ✅ FIX: Handle paginated categories response
+  const { data: categoriesData, isLoading: categoriesLoading } =
+    useQuery<CategoriesResponse>({
+      queryKey: ["categories"],
+      queryFn: () => getCategoriesApi({ showAll: "true" }), // Pass showAll to get all categories
+    });
+
+  // Extract categories array from response
+  const categories = categoriesData?.data || [];
 
   const { data: unitsRaw = [] } = useQuery<any[]>({
     queryKey: ["units"],
@@ -138,7 +164,7 @@ const InventoryItems = () => {
   const emptyForm = {
     name: "",
     sku: "",
-    categoryId: "",
+    categoryId: undefined,
     purchaseUnitId: "",
     saleUnitIds: [] as string[],
     costPrice: "",
@@ -196,12 +222,12 @@ const InventoryItems = () => {
     }
     return unit;
   };
-  
+
   const getUnitFamily = (purchaseUnitId: string) => {
     if (!purchaseUnitId) return [];
     const pu = units.find((u: Unit) => u.id === purchaseUnitId);
     if (!pu) return [];
-    
+
     // find root base unit
     let base = pu;
     while (base.baseUnitId) {
@@ -210,7 +236,7 @@ const InventoryItems = () => {
       base = parent;
     }
     const baseId = base.id;
-    
+
     // return all units belonging to that base
     return units.filter(
       (u: Unit) => u.isActive && (u.id === baseId || u.baseUnitId === baseId),
@@ -250,7 +276,7 @@ const InventoryItems = () => {
     const payload = {
       name: form.name,
       sku: form.sku,
-      category_id: form.categoryId,
+      category_id: form.categoryId|| undefined,
       saleUnits: form.saleUnitIds,
       unit: baseUnit?.shortCode,
       purchaseUnit_id: form.purchaseUnitId,
@@ -325,11 +351,17 @@ const InventoryItems = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c: Category) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
+                {categoriesLoading ? (
+                  <SelectItem value="loading" disabled>
+                    Loading...
                   </SelectItem>
-                ))}
+                ) : (
+                  categories.map((c: Category) => (
+  <SelectItem key={c._id} value={c._id}>
+    {c.name}
+  </SelectItem>
+))
+                )}
               </SelectContent>
             </Select>
           </CardContent>
@@ -373,8 +405,8 @@ const InventoryItems = () => {
                       <td className="p-4 text-right">
                         <span
                           className={`px-2 py-1 rounded ${
-                            item.currentStock <= item.minimumStock 
-                              ? "bg-red-100 text-red-700 font-bold" 
+                            item.currentStock <= item.minimumStock
+                              ? "bg-red-100 text-red-700 font-bold"
                               : ""
                           }`}
                         >
@@ -382,7 +414,9 @@ const InventoryItems = () => {
                         </span>
                       </td>
                       <td className="p-4 text-center">
-                        <Badge variant={item.isActive ? "default" : "secondary"}>
+                        <Badge
+                          variant={item.isActive ? "default" : "secondary"}
+                        >
                           {item.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </td>
@@ -409,14 +443,17 @@ const InventoryItems = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                    <td
+                      colSpan={6}
+                      className="p-8 text-center text-muted-foreground"
+                    >
                       {isFetching ? "Searching..." : "No items found"}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-            
+
             {/* Pagination */}
             {pagination.totalPages > 0 && (
               <DataTablePagination
@@ -462,18 +499,24 @@ const InventoryItems = () => {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select
-                  value={form.categoryId}
+                  value={form.categoryId||undefined}
                   onValueChange={(v) => setForm({ ...form, categoryId: v })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((c: Category) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
+                    {categoriesLoading ? (
+                      <SelectItem value="loading" disabled>
+                        Loading categories...
                       </SelectItem>
-                    ))}
+                    ) : (
+                      categories.map((c: Category) => (
+                        <SelectItem key={c._id} value={c._id}>
+                          {c.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
