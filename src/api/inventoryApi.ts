@@ -11,7 +11,7 @@ import {
   mapAuditLog,
   mapStockAdjustment,
   mapSalesInvoice,
-  mapCustomer
+  mapCustomer,
 } from "@/pages/inventory/mapper/inventoryMapper";
 import { useParams } from "react-router-dom";
 
@@ -36,8 +36,9 @@ export const getCategoriesApi = async (params?: {
   if (params?.page) queryString.append("page", params.page.toString());
   if (params?.limit) queryString.append("limit", params.limit.toString());
   if (params?.search) queryString.append("search", params.search);
-  if (params?.isActive !== undefined) queryString.append("isActive", params.isActive.toString());
-  
+  if (params?.isActive !== undefined)
+    queryString.append("isActive", params.isActive.toString());
+
   const url = `/inventory/categories${queryString.toString() ? `?${queryString.toString()}` : ""}`;
   const res = await api.get(url);
   return res.data;
@@ -66,26 +67,26 @@ export const getItemsApi = async (params?: { search?: string }) => {
   return res.data.data.map(mapInventoryItem);
 };
 
-export const getPaginatedItemsApi = async (params?: { 
-  page?: number; 
-  limit?: number; 
+export const getPaginatedItemsApi = async (params?: {
+  page?: number;
+  limit?: number;
   search?: string;
   category?: string;
   active?: boolean;
 }) => {
-  const res = await api.get("/inventory/items/paginated", { 
+  const res = await api.get("/inventory/items/paginated", {
     params: {
       page: params?.page || 1,
       limit: params?.limit || 10,
       search: params?.search,
       category: params?.category,
-      active: params?.active
-    } 
+      active: params?.active,
+    },
   });
-  
+
   return {
     data: res.data.data.map(mapInventoryItem),
-    pagination: res.data.pagination
+    pagination: res.data.pagination,
   };
 };
 
@@ -160,18 +161,20 @@ export const getInvoicesApi = async (params?: {
   toDate?: string;
 }) => {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
   if (params?.search) queryParams.append("search", params.search);
-  if (params?.state && params.state !== "ALL") queryParams.append("state", params.state);
-  if (params?.paymentStatus && params.paymentStatus !== "ALL") queryParams.append("paymentStatus", params.paymentStatus);
+  if (params?.state && params.state !== "ALL")
+    queryParams.append("state", params.state);
+  if (params?.paymentStatus && params.paymentStatus !== "ALL")
+    queryParams.append("paymentStatus", params.paymentStatus);
   if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
   if (params?.toDate) queryParams.append("toDate", params.toDate);
-  
+
   const url = `/inventory/invoices${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const res = await api.get(url);
-  
+
   // If backend already returns paginated response
   if (res.data && res.data.data && Array.isArray(res.data.data)) {
     return {
@@ -183,7 +186,7 @@ export const getInvoicesApi = async (params?: {
       limit: res.data.limit,
     };
   }
-  
+
   // If backend returns array directly, paginate client-side
   if (Array.isArray(res.data)) {
     const allInvoices = res.data.map(mapInvoice);
@@ -192,7 +195,7 @@ export const getInvoicesApi = async (params?: {
     const start = (page - 1) * limit;
     const end = start + limit;
     const paginatedData = allInvoices.slice(start, end);
-    
+
     return {
       success: true,
       data: paginatedData,
@@ -202,7 +205,7 @@ export const getInvoicesApi = async (params?: {
       limit: limit,
     };
   }
-  
+
   // Fallback for any other format
   return {
     success: true,
@@ -273,18 +276,20 @@ export const getStockTransactionsApi = async (params?: {
   toDate?: string;
 }) => {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
-  if (params?.type && params.type !== "all") queryParams.append("type", params.type);
-  if (params?.referenceType && params.referenceType !== "all") queryParams.append("referenceType", params.referenceType);
+  if (params?.type && params.type !== "all")
+    queryParams.append("type", params.type);
+  if (params?.referenceType && params.referenceType !== "all")
+    queryParams.append("referenceType", params.referenceType);
   if (params?.search) queryParams.append("search", params.search);
   if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
   if (params?.toDate) queryParams.append("toDate", params.toDate);
-  
+
   const url = `/inventory/stock/transactions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const res = await api.get(url);
-  
+
   // Return the full response with pagination info
   return res.data;
 };
@@ -385,7 +390,7 @@ export const getJournalEntryApi = async (id: string) => {
 
 export const reverseJournalEntryApi = async (
   id: string,
-  data: { narration?: string } = {}
+  data: { narration?: string } = {},
 ) => {
   const res = await api.post(`/inventory/journal/${id}/reverse`, data);
   return mapJournalEntry(res.data.data);
@@ -404,19 +409,22 @@ export const getAuditLogsApi = async (params?: {
   toDate?: string;
 }) => {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
   if (params?.search) queryParams.append("search", params.search);
-  if (params?.entityType && params.entityType !== "all") queryParams.append("entityType", params.entityType);
-  if (params?.action && params.action !== "all") queryParams.append("action", params.action);
-  if (params?.performedBy) queryParams.append("performedBy", params.performedBy);
+  if (params?.entityType && params.entityType !== "all")
+    queryParams.append("entityType", params.entityType);
+  if (params?.action && params.action !== "all")
+    queryParams.append("action", params.action);
+  if (params?.performedBy)
+    queryParams.append("performedBy", params.performedBy);
   if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
   if (params?.toDate) queryParams.append("toDate", params.toDate);
-  
+
   const url = `/inventory/audit${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const res = await api.get(url);
-  
+
   // If backend already returns paginated response with logs array
   if (res.data && res.data.logs && Array.isArray(res.data.logs)) {
     return {
@@ -428,7 +436,7 @@ export const getAuditLogsApi = async (params?: {
       limit: res.data.limit,
     };
   }
-  
+
   // If backend returns paginated response with data array
   if (res.data && res.data.data && Array.isArray(res.data.data)) {
     return {
@@ -440,7 +448,7 @@ export const getAuditLogsApi = async (params?: {
       limit: res.data.limit,
     };
   }
-  
+
   // If backend returns array directly (no pagination)
   if (Array.isArray(res.data)) {
     const allLogs = res.data.map(mapAuditLog);
@@ -449,7 +457,7 @@ export const getAuditLogsApi = async (params?: {
     const start = (page - 1) * limit;
     const end = start + limit;
     const paginatedData = allLogs.slice(start, end);
-    
+
     return {
       success: true,
       data: paginatedData,
@@ -459,7 +467,7 @@ export const getAuditLogsApi = async (params?: {
       limit: limit,
     };
   }
-  
+
   // If backend returns logs array directly
   if (res.data && Array.isArray(res.data.logs)) {
     const allLogs = res.data.logs.map(mapAuditLog);
@@ -468,7 +476,7 @@ export const getAuditLogsApi = async (params?: {
     const start = (page - 1) * limit;
     const end = start + limit;
     const paginatedData = allLogs.slice(start, end);
-    
+
     return {
       success: true,
       data: paginatedData,
@@ -478,7 +486,7 @@ export const getAuditLogsApi = async (params?: {
       limit: limit,
     };
   }
-  
+
   // Fallback for any other format
   return {
     success: true,
@@ -557,17 +565,17 @@ export const getAllSalesPaymentsApi = async (params?: {
   toDate?: string;
 }) => {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
   if (params?.search) queryParams.append("search", params.search);
   if (params?.method) queryParams.append("method", params.method);
   if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
   if (params?.toDate) queryParams.append("toDate", params.toDate);
-  
+
   const url = `/inventory/sales-payments${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const res = await api.get(url);
-  
+
   // Return the full response with pagination info
   return res.data;
 };
@@ -659,20 +667,22 @@ export const getRelatedUnitsApi = async (id: string) => {
 ========================================================= */
 // In your inventoryApi.ts file
 
-export const getCustomersApi = async (params?: { 
-  search?: string; 
-  page?: number; 
+export const getCustomersApi = async (params?: {
+  search?: string;
+  page?: number;
   limit?: number;
   isActive?: boolean;
   customerType?: string; // ✅ add this
 }) => {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.search) queryParams.append("search", params.search);
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
-  if (params?.isActive !== undefined) queryParams.append("isActive", params.isActive.toString());
-  if (params?.customerType) queryParams.append("customerType", params.customerType); // ✅
+  if (params?.isActive !== undefined)
+    queryParams.append("isActive", params.isActive.toString());
+  if (params?.customerType)
+    queryParams.append("customerType", params.customerType); // ✅
 
   const url = `/inventory/customers/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const res = await api.get(url);

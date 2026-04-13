@@ -32,6 +32,7 @@ import {
 import {
   getSalesInvoicesApi,
   createSalesInvoiceApi,
+  createCustomerApi,
   approveSalesInvoiceApi,
   postSalesInvoiceApi,
   cancelSalesInvoiceApi,
@@ -196,6 +197,9 @@ const SalesInvoices = () => {
   const [paymentTerms, setPaymentTerms] = useState("IMMEDIATE");
   const [lineItems, setLineItems] = useState<LineItemForm[]>([emptyLine()]);
   const [barcodeInput, setBarcodeInput] = useState("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+const [newCustomerPhone, setNewCustomerPhone] = useState("");
+const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   // Debounced search for customers
   const debouncedCustomerSearch = useDebounce(customerSearch, 300);
@@ -217,7 +221,7 @@ const dropdownRef = useRef<HTMLDivElement | null>(null);
           limit: 10,
           isActive: true,
         });
-        setCustomerSearchResults(results);
+        setCustomerSearchResults(results.data);
       } catch (error) {
         console.error("Failed to search customers:", error);
         toast({
@@ -1357,10 +1361,62 @@ try {
                       </div>
                     ) : customerSearchResults.length === 0 ? (
                       <div className="px-4 py-6 text-center text-muted-foreground">
-                        <p>No customers found</p>
-                        <p className="text-xs mt-1">
-                          Try a different search term
-                        </p>
+                      <div className="px-4 py-4 space-y-3">
+  <p className="text-sm font-medium text-muted-foreground">
+    No customers found
+  </p>
+
+  <Input
+    placeholder="Enter customer name"
+    value={newCustomerName}
+    onChange={(e) => setNewCustomerName(e.target.value)}
+  />
+
+  <Input
+    placeholder="Enter phone number"
+    value={newCustomerPhone}
+    onChange={(e) => setNewCustomerPhone(e.target.value)}
+  />
+
+  <Button
+    size="sm"
+    className="w-full"
+    disabled={!newCustomerName || !newCustomerPhone || isCreatingCustomer}
+    onClick={async () => {
+      try {
+        setIsCreatingCustomer(true);
+
+        const res = await createCustomerApi({
+          name: newCustomerName,
+          phone: newCustomerPhone,
+        });
+
+        // ✅ Set customer
+        setCustomerId(res.id);
+        setCustomerSearch(res.name);
+
+        // ✅ Reset
+        setNewCustomerName("");
+        setNewCustomerPhone("");
+        setShowCustomerDropdown(false);
+
+        toast({
+          title: "Customer Created",
+          description: `${res.name} added successfully`,
+        });
+      } catch (err) {
+        toast({
+          title: "Failed to create customer",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreatingCustomer(false);
+      }
+    }}
+  >
+    {isCreatingCustomer ? "Creating..." : "Create Customer"}
+  </Button>
+</div>
                       </div>
                     ) : (
                       customerSearchResults.map((customer) => (
@@ -1804,12 +1860,13 @@ try {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleCreate}
-              className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
-            >
-              Create Invoice (Draft)
-            </Button>
+           <Button
+  onClick={handleCreate}
+  disabled={!customerId}
+  className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
+>
+  Create Invoice (Draft)
+</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
